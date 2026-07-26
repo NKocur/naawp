@@ -43,7 +43,7 @@ Cloudflare Access is the outer gate: it controls who can reach the website. The 
 
 **Goal:** owners can invite people into the existing wedding workspace and assign safe, enforceable roles.
 
-**Current implementation status:** In progress. The API now has invitations, owner-only membership management, token-hash storage, expiry/revocation, audit events, and a first owner-only People & access dialog. Email delivery is intentionally not automated yet: an owner copies the generated private invitation link and separately adds that email to Cloudflare Access.
+**Current implementation status:** In progress. The API now has invitations, owner-only membership management, token-hash storage, expiry/revocation, owner invitations, audit events, and a first owner-only People & access dialog. Email delivery is intentionally not automated yet: an owner copies the generated private invitation link and separately adds that email to Cloudflare Access.
 
 #### Backend
 
@@ -73,6 +73,8 @@ Cloudflare Access is the outer gate: it controls who can reach the website. The 
 ### Phase 2 — Shared tasks and comments
 
 **Goal:** make the checklist the first fully shared module.
+
+**Current implementation status:** In progress. Server-backed task records, ordered Kanban columns, archive actions, and server-backed comments are implemented. The signed-in checklist now loads from the workspace API rather than browser-local task storage. Attachment support, concurrent-edit feedback, a shared activity screen, and import of older browser-local tasks remain.
 
 1. Complete task API support for ordering within a Kanban column, category changes, assignments, due dates, priority, comments, archive/restore, and attachments.
 2. Add `task_comments` and `task_attachments` tables with author, edit history, archive state, and timestamps.
@@ -197,8 +199,8 @@ Cloudflare Access is the outer gate: it controls who can reach the website. The 
 
 ## Immediate next sprint
 
-1. Build the membership/invitation schema and server endpoints.
-2. Build the owner-only People & access page.
-3. Add task assignment and a server-backed task comment model.
-4. Migrate the task UI from local storage to the task API.
-5. Test with Andrea, Nash, and one restricted test contributor before inviting family.
+1. Deploy and test owner invitations with Andrea and Nash as Owners.
+2. Test shared tasks and comments from two accounts, including Kanban reordering and permission boundaries.
+3. Add task attachments and a shared activity view.
+4. Add a one-time owner import for older browser-local task data.
+5. Start the shared budget, payments, and vendor data model.

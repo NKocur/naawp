@@ -255,20 +255,82 @@ app.get('/api/weddings/:weddingId/tasks', async (request, reply) => {
   const { weddingId } = request.params;
   await requireMembership(user.id, weddingId, allRoles);
   const result = await query('SELECT * FROM tasks WHERE wedding_id=$1 AND archived_at IS NULL ORDER BY status,position,created_at', [weddingId]);
-  return { tasks: result.rows };
+  const comments = await query(`SELECT c.*, u.display_name AS author_name FROM task_comments c
+    JOIN users u ON u.id=c.created_by WHERE c.wedding_id=$1 AND c.archived_at IS NULL ORDER BY c.created_at`, [weddingId]);
+  const commentsByTask = new Map();
+  for (const comment of comments.rows) commentsByTask.set(comment.task_id, [...(commentsByTask.get(comment.task_id) || []), comment]);
+  return { tasks: result.rows.map(task => ({ ...task, comments: commentsByTask.get(task.id) || [] })) };
 });
 app.post('/api/weddings/:weddingId/tasks', async (request, reply) => {
   const user = await requireUser(request, reply); if (!user) return;
   const { weddingId } = request.params;
   await requireMembership(user.id, weddingId, ['owner', 'editor', 'contributor']);
-  const body = z.object({ title:z.string().min(1).max(250), category:z.string().max(80).optional(), priority:z.enum(['Low','Medium','High']).optional(), assignee:z.string().max(100).optional(), notes:z.string().max(5000).optional(), linkedVendor:z.string().max(160).optional(), dueDate:z.string().date().optional(), status:z.enum(['todo','progress','done']).optional(), position:z.number().int().nonnegative().optional() }).parse(request.body);
+  const body = z.object({ title:z.string().min(1).max(250), category:z.string().max(80).optional(), priority:z.enum(['Low','Medium','High']).optional(), assignee:z.string().max(100).nullable().optional(), notes:z.string().max(5000).nullable().optional(), linkedVendor:z.string().max(160).nullable().optional(), dueDate:z.string().date().nullable().optional(), status:z.enum(['todo','progress','done']).optional(), position:z.number().int().nonnegative().optional() }).parse(request.body);
   const task = await withTransaction(async client => {
+    const position = body.position ?? (await client.query('SELECT COALESCE(MAX(position), -1) + 1 AS position FROM tasks WHERE wedding_id=$1 AND status=$2 AND archived_at IS NULL', [weddingId, body.status || 'todo'])).rows[0].position;
     const result = await client.query(`INSERT INTO tasks (wedding_id,title,category,priority,assignee,notes,linked_vendor,due_date,status,position,created_by,updated_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11) RETURNING *`, [weddingId,body.title,body.category||'Other',body.priority||'Medium',body.assignee||null,body.notes||null,body.linkedVendor||null,body.dueDate||null,body.status||'todo',body.position||0,user.id]);
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11) RETURNING *`, [weddingId,body.title,body.category||'Other',body.priority||'Medium',body.assignee||null,body.notes||null,body.linkedVendor||null,body.dueDate||null,body.status||'todo',position,user.id]);
     await audit(client,weddingId,user.id,'task',result.rows[0].id,'created');
     return result.rows[0];
   });
   reply.code(201).send({ task });
+});
+app.put('/api/weddings/:weddingId/tasks/order', async (request, reply) => {
+  const user = await requireUser(request, reply); if (!user) return;
+  const { weddingId } = request.params;
+  await requireMembership(user.id, weddingId, ['owner','editor','contributor']);
+  const body = z.object({ tasks: z.array(z.object({ id:z.string().uuid(), status:z.enum(['todo','progress','done']), position:z.number().int().nonnegative() })).max(500) }).parse(request.body);
+  await withTransaction(async client => {
+    for (const task of body.tasks) {
+      const result = await client.query('UPDATE tasks SET status=$3,position=$4,updated_by=$5,updated_at=now() WHERE wedding_id=$1 AND id=$2 AND archived_at IS NULL', [weddingId, task.id, task.status, task.position, user.id]);
+      if (!result.rowCount) throw httpError('Task not found.', 404);
+    }
+    await audit(client,weddingId,user.id,'task',null,'reordered',{count:body.tasks.length});
+  });
+  reply.code(204).send();
+});
+app.post('/api/weddings/:weddingId/tasks/:taskId/comments', async (request, reply) => {
+  const user = await requireUser(request, reply); if (!user) return;
+  const { weddingId, taskId } = request.params;
+  await requireMembership(user.id, weddingId, ['owner','editor','contributor']);
+  const body = z.object({ body:z.string().trim().min(1).max(5000) }).parse(request.body);
+  const comment = await withTransaction(async client => {
+    const exists = await client.query('SELECT id FROM tasks WHERE id=$1 AND wedding_id=$2 AND archived_at IS NULL', [taskId,weddingId]);
+    if (!exists.rows[0]) throw httpError('Task not found.', 404);
+    const result = await client.query(`INSERT INTO task_comments (task_id,wedding_id,body,created_by,updated_by)
+      VALUES ($1,$2,$3,$4,$4) RETURNING *`,[taskId,weddingId,body.body,user.id]);
+    await audit(client,weddingId,user.id,'task_comment',result.rows[0].id,'created',{taskId});
+    return { ...result.rows[0], author_name:user.display_name };
+  });
+  reply.code(201).send({ comment });
+});
+app.patch('/api/weddings/:weddingId/tasks/:taskId/comments/:commentId', async (request, reply) => {
+  const user = await requireUser(request, reply); if (!user) return;
+  const { weddingId, taskId, commentId } = request.params;
+  const membership = await requireMembership(user.id, weddingId, ['owner','editor','contributor']);
+  const body = z.object({ body:z.string().trim().min(1).max(5000) }).parse(request.body);
+  const comment = await withTransaction(async client => {
+    const current = await client.query('SELECT created_by FROM task_comments WHERE id=$1 AND task_id=$2 AND wedding_id=$3 AND archived_at IS NULL FOR UPDATE',[commentId,taskId,weddingId]);
+    if (!current.rows[0]) throw httpError('Comment not found.',404);
+    if (membership.role !== 'owner' && current.rows[0].created_by !== user.id) throw httpError('Only the author or an owner can edit this comment.',403);
+    const result = await client.query('UPDATE task_comments SET body=$4,updated_by=$5,updated_at=now() WHERE id=$1 AND task_id=$2 AND wedding_id=$3 RETURNING *',[commentId,taskId,weddingId,body.body,user.id]);
+    await audit(client,weddingId,user.id,'task_comment',commentId,'updated',{taskId});
+    return { ...result.rows[0], author_name:user.display_name };
+  });
+  return { comment };
+});
+app.delete('/api/weddings/:weddingId/tasks/:taskId/comments/:commentId', async (request, reply) => {
+  const user = await requireUser(request, reply); if (!user) return;
+  const { weddingId, taskId, commentId } = request.params;
+  const membership = await requireMembership(user.id, weddingId, ['owner','editor','contributor']);
+  await withTransaction(async client => {
+    const current = await client.query('SELECT created_by FROM task_comments WHERE id=$1 AND task_id=$2 AND wedding_id=$3 AND archived_at IS NULL FOR UPDATE',[commentId,taskId,weddingId]);
+    if (!current.rows[0]) throw httpError('Comment not found.',404);
+    if (membership.role !== 'owner' && current.rows[0].created_by !== user.id) throw httpError('Only the author or an owner can delete this comment.',403);
+    await client.query('UPDATE task_comments SET archived_at=now(),updated_by=$4,updated_at=now() WHERE id=$1 AND task_id=$2 AND wedding_id=$3',[commentId,taskId,weddingId,user.id]);
+    await audit(client,weddingId,user.id,'task_comment',commentId,'archived',{taskId});
+  });
+  reply.code(204).send();
 });
 app.patch('/api/weddings/:weddingId/tasks/:taskId', async (request, reply) => {
   const user = await requireUser(request, reply); if (!user) return;

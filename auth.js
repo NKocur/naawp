@@ -7,6 +7,7 @@
     if (!response.ok) throw new Error(body.error || 'The server could not complete that request.');
     return body;
   };
+  window.everAfterApi = api;
   const topActions = document.querySelector('.top-actions');
   if (!topActions) return;
   const appShell = document.querySelector('.app-shell');
@@ -74,6 +75,7 @@
       const result = await api('/api/auth/me');
       if (result.user) {
         user = result.user;
+        window.everAfterUser = user;
         const workspaces = await api('/api/weddings');
         workspace = workspaces.weddings[0] || null;
         if (inviteToken) {
@@ -105,7 +107,7 @@
       }
     } catch { /* The local demo remains usable when the API is unavailable. */ }
     try { workspaceRegistrationOpen = (await api('/api/auth/setup')).workspaceCreationOpen; } catch { workspaceRegistrationOpen = false; }
-    user = null; workspace = null; window.everAfterWorkspaceId = null; setGate(true);
+    user = null; workspace = null; window.everAfterUser = null; window.everAfterWorkspaceId = null; setGate(true);
     document.querySelector('#team-list').innerHTML = '<p class="empty-state">Sign in to see the people planning with you.</p>';
     peopleButton.classList.add('hidden'); signOutButton.classList.add('hidden'); button.textContent = 'Sign in'; button.title = 'Sign in to the production workspace';
     button.onclick = () => { setMode(inviteToken ? 'register' : 'login'); modal.showModal(); };
