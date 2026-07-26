@@ -19,6 +19,8 @@ This creates three files in `backups/` before downloading code or rebuilding:
 
 Copy completed backup sets off the Pi periodically (for example, to a computer or encrypted external drive). A backup on the same Pi does not protect against hardware loss.
 
+The update script waits up to 20 seconds for the frontend health check after rebuilding; a brief connection reset while Nginx restarts is normal.
+
 ## Restore outline
 
 Stop the stack, preserve the current volumes, then restore only after confirming which backup set you intend to use. Database restore overwrites current database contents, so take a fresh backup first.

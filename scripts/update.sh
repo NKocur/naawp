@@ -12,6 +12,15 @@ if docker info >/dev/null 2>&1; then
 else
   sudo docker compose up -d --build
 fi
-curl --fail --silent --show-error http://127.0.0.1:8080/api/health
+
+attempt=1
+until curl --fail --silent --show-error http://127.0.0.1:8080/api/health; do
+  if [ "$attempt" -ge 20 ]; then
+    echo "The stack did not become healthy within 20 seconds." >&2
+    exit 1
+  fi
+  attempt=$((attempt + 1))
+  sleep 1
+done
 echo
 echo "Update complete. A database and uploads backup was made before deployment."
