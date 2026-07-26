@@ -35,6 +35,7 @@ Completed in the audit fix pass:
 - Reveal every task-specific field when adding or editing a task, including the due-date control.
 - Preserve and migrate legacy wedding date/location values into the shared workspace instead of replacing them with blank database fields at sign-in.
 - Give shared wedding settings their own direct Save control so legacy dialog handlers cannot overwrite a saved date or location.
+- Use stable honeymoon-page fallbacks while shared panels load concurrently, preventing itinerary/packing/document insertion races.
 
 Still planned before broader use:
 
