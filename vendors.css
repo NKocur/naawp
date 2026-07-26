@@ -30,6 +30,14 @@
 .vendor-entry-panel .vendor-entry-form button,
 #shared-vendor-quotes .vendor-quote-entry-form button { grid-column: 1 / -1; }
 
+/* Quote actions stay on the first row; files and the upload button get a
+   dedicated second row so their controls cannot overlap. */
+#shared-vendor-quotes .owed-item { grid-template-columns: 35px minmax(0, 1fr) auto; }
+#shared-vendor-quotes .owed-item > .task-actions { grid-column: 3; grid-row: 1; white-space: nowrap; }
+#shared-vendor-quotes .owed-item > .task-attachments { grid-column: 1 / -1; grid-row: 2; margin-top: .15rem; }
+#shared-vendor-quotes .task-attachments > button { white-space: nowrap; }
+#shared-vendor-quotes .task-file { max-width: 100%; overflow-wrap: anywhere; }
+
 @media (max-width: 760px) {
   .vendor-entry-panel .vendor-entry-form,
   #shared-vendor-quotes .vendor-quote-entry-form { grid-template-columns: 1fr; }
