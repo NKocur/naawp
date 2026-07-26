@@ -1,0 +1,12 @@
+/* Shared workspaces render the server-backed Honeymoon panels only. */
+.honeymoon-hero[hidden],
+.honeymoon-grid[hidden],
+#add-reservation[hidden] {
+  display: none !important;
+}
+
+/* The offline hero can still be used without an account. Keep its actions
+   visibly separated and let them wrap on narrow displays. */
+.honeymoon-hero button {
+  margin: 4px 8px 0 0;
+}
