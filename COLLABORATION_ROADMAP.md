@@ -93,7 +93,7 @@ Cloudflare Access is the outer gate: it controls who can reach the website. The 
 
 **Goal:** establish one trusted financial source of truth.
 
-**Current implementation status:** Started. The database foundation for shared budget categories, vendors, expense stages, payments, and repayment splits is in place. The browser Budget and Vendors screens remain explicitly browser-local until their API and UI migrations are complete.
+**Current implementation status:** In progress. The database foundation for shared budget categories, vendors, expense stages, payments, and repayment splits is in place. Server-side shared finance totals and budget-category read/create endpoints are available to Owners and Editors. The browser Budget and Vendors screens remain explicitly browser-local until their API and UI migrations are complete.
 
 #### Data model
 

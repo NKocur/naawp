@@ -233,6 +233,34 @@ app.get('/api/weddings/:weddingId/activity', async (request, reply) => {
     WHERE a.wedding_id=$1 ORDER BY a.created_at DESC LIMIT 100`,[weddingId]);
   return { events:result.rows };
 });
+app.get('/api/weddings/:weddingId/finance/summary', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const [budget,expenses,payments,reimbursements]=await Promise.all([
+    query(`SELECT COALESCE(SUM(planned_amount),0)::numeric AS planned FROM budget_categories WHERE wedding_id=$1 AND archived_at IS NULL`,[weddingId]),
+    query(`SELECT COALESCE(SUM(committed),0)::numeric AS committed,
+      COALESCE(SUM(CASE WHEN stage='estimated' THEN committed ELSE 0 END),0)::numeric AS estimated
+      FROM expenses WHERE wedding_id=$1 AND archived_at IS NULL AND stage NOT IN ('cancelled','refunded')`,[weddingId]),
+    query(`SELECT COALESCE(SUM(amount),0)::numeric AS paid FROM payments WHERE wedding_id=$1 AND archived_at IS NULL`,[weddingId]),
+    query(`SELECT COALESCE(SUM(s.amount) FILTER (WHERE s.settled_at IS NULL),0)::numeric AS reimbursement_owed
+      FROM payment_splits s JOIN payments p ON p.id=s.payment_id WHERE p.wedding_id=$1 AND p.archived_at IS NULL`,[weddingId])
+  ]);
+  const planned=Number(budget.rows[0].planned),committed=Number(expenses.rows[0].committed),paid=Number(payments.rows[0].paid);
+  return { summary:{planned,estimated:Number(expenses.rows[0].estimated),committed,paid,stillOwed:Math.max(0,committed-paid),remainingBudget:planned-committed,reimbursementOwed:Number(reimbursements.rows[0].reimbursement_owed)} };
+});
+app.get('/api/weddings/:weddingId/budget-categories', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const result=await query('SELECT id,name,planned_amount,created_at,updated_at FROM budget_categories WHERE wedding_id=$1 AND archived_at IS NULL ORDER BY name',[weddingId]);
+  return { categories:result.rows };
+});
+app.post('/api/weddings/:weddingId/budget-categories', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const body=z.object({name:z.string().trim().min(1).max(100),plannedAmount:z.number().nonnegative().optional()}).parse(request.body);
+  const category=await withTransaction(async client=>{const result=await client.query(`INSERT INTO budget_categories (wedding_id,name,planned_amount,created_by,updated_by) VALUES ($1,$2,$3,$4,$4) RETURNING id,name,planned_amount,created_at,updated_at`,[weddingId,body.name,body.plannedAmount||0,user.id]);await audit(client,weddingId,user.id,'budget_category',result.rows[0].id,'created');return result.rows[0];});
+  reply.code(201).send({category});
+});
 app.post('/api/weddings/:weddingId/invitations', { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } }, async (request, reply) => {
   const user = await ownerUser(request, reply); if (!user) return;
   const { weddingId } = request.params;
