@@ -129,9 +129,11 @@
     const inviteControls = [document.querySelector('#invite-button'), document.querySelector('#invite-wide')];
     if (!user || !workspace) { list.innerHTML = '<p class="empty-state">Sign in to see the people planning with you.</p>'; return; }
     let members = [{ ...user, role: workspace.role }];
-    if (workspace.role === 'owner') {
-      try { members = (await api(`/api/weddings/${workspace.id}/collaboration`)).members; } catch { /* Keep the signed-in owner visible if the request is unavailable. */ }
-    }
+    try {
+      members = workspace.role === 'owner'
+        ? (await api(`/api/weddings/${workspace.id}/collaboration`)).members
+        : (await api(`/api/weddings/${workspace.id}/members`)).members;
+    } catch { /* Keep the signed-in user visible if the request is unavailable. */ }
     list.innerHTML = members.map(member => {
       const initials = (member.display_name || member.email).split(/\s+/).map(part => part[0] || '').join('').slice(0, 2).toUpperCase();
       const label = member.role[0].toUpperCase() + member.role.slice(1);

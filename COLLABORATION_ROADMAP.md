@@ -74,7 +74,7 @@ Cloudflare Access is the outer gate: it controls who can reach the website. The 
 
 **Goal:** make the checklist the first fully shared module.
 
-**Current implementation status:** In progress. Server-backed task records, ordered Kanban columns, archive actions, and server-backed comments are implemented. The signed-in checklist now loads from the workspace API rather than browser-local task storage. Attachment support, concurrent-edit feedback, a shared activity screen, and import of older browser-local tasks remain.
+**Current implementation status:** In progress. Server-backed task records, ordered Kanban columns, archive actions, member-backed assignments, server-backed comments, and role-aware checklist controls are implemented. The signed-in checklist now loads from the workspace API rather than browser-local task storage. Shared text is safely rendered rather than injected as HTML. Attachment support, concurrent-edit feedback, a shared activity screen, and import of older browser-local tasks remain.
 
 1. Complete task API support for ordering within a Kanban column, category changes, assignments, due dates, priority, comments, archive/restore, and attachments.
 2. Add `task_comments` and `task_attachments` tables with author, edit history, archive state, and timestamps.
@@ -203,4 +203,4 @@ Cloudflare Access is the outer gate: it controls who can reach the website. The 
 2. Test shared tasks and comments from two accounts, including Kanban reordering and permission boundaries.
 3. Add task attachments and a shared activity view.
 4. Add a one-time owner import for older browser-local task data.
-5. Start the shared budget, payments, and vendor data model.
+5. Start the shared budget, payments, and vendor data model. Until then, Budget, Vendors, Ideas, Honeymoon, and Details explicitly identify themselves as browser-local, single-device modules.

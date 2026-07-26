@@ -63,6 +63,13 @@ async function requireMembership(userId, weddingId, allowedRoles) {
   if (!membership || !allowedRoles.includes(membership.role)) throw httpError('You do not have permission for this workspace.', 403);
   return membership;
 }
+async function resolveAssignee(client, weddingId, assigneeUserId) {
+  if (!assigneeUserId) return { id: null, name: null };
+  const result = await client.query(`SELECT u.id,u.display_name FROM memberships m
+    JOIN users u ON u.id=m.user_id WHERE m.wedding_id=$1 AND m.user_id=$2`, [weddingId, assigneeUserId]);
+  if (!result.rows[0]) throw httpError('The selected assignee is not a member of this workspace.', 400);
+  return { id: result.rows[0].id, name: result.rows[0].display_name };
+}
 async function audit(client, weddingId, actorId, entityType, entityId, action, details = {}) {
   await client.query(`INSERT INTO audit_events (wedding_id, actor_id, entity_type, entity_id, action, details)
     VALUES ($1,$2,$3,$4,$5,$6)`, [weddingId, actorId, entityType, entityId, action, details]);
@@ -173,6 +180,23 @@ app.get('/api/weddings', async (request, reply) => {
     FROM weddings w JOIN memberships m ON m.wedding_id=w.id WHERE m.user_id=$1 ORDER BY w.created_at`, [user.id]);
   return { weddings: result.rows };
 });
+app.patch('/api/weddings/:weddingId', async (request, reply) => {
+  const user = await ownerUser(request, reply); if (!user) return;
+  const { weddingId } = request.params;
+  const body = z.object({ name:z.string().trim().min(1).max(160).optional(), weddingDate:z.string().date().nullable().optional(), location:z.string().trim().max(160).nullable().optional() }).parse(request.body);
+  const fields = { name:body.name, wedding_date:body.weddingDate, location:body.location };
+  const entries = Object.entries(fields).filter(([,value]) => value !== undefined);
+  if (!entries.length) return reply.code(400).send({ error:'No changes supplied.' });
+  const wedding = await withTransaction(async client => {
+    const values=[weddingId];
+    const sets=entries.map(([column,value],index)=>{values.push(value);return `${column}=$${index+2}`;});
+    const result=await client.query(`UPDATE weddings SET ${sets.join(',')},updated_at=now() WHERE id=$1 RETURNING id,name,wedding_date,location`,values);
+    if (!result.rows[0]) throw httpError('Wedding workspace not found.',404);
+    await audit(client,weddingId,user.id,'wedding',weddingId,'updated',{fields:entries.map(([column])=>column)});
+    return result.rows[0];
+  });
+  return { wedding };
+});
 
 app.get('/api/weddings/:weddingId/collaboration', async (request, reply) => {
   const user = await ownerUser(request, reply); if (!user) return;
@@ -263,7 +287,9 @@ app.get('/api/weddings/:weddingId/tasks', async (request, reply) => {
   const user = await requireUser(request, reply); if (!user) return;
   const { weddingId } = request.params;
   await requireMembership(user.id, weddingId, allRoles);
-  const result = await query('SELECT * FROM tasks WHERE wedding_id=$1 AND archived_at IS NULL ORDER BY status,position,created_at', [weddingId]);
+  const result = await query(`SELECT t.*, u.display_name AS assignee_name FROM tasks t
+    LEFT JOIN users u ON u.id=t.assignee_user_id
+    WHERE t.wedding_id=$1 AND t.archived_at IS NULL ORDER BY t.status,t.position,t.created_at`, [weddingId]);
   const comments = await query(`SELECT c.*, u.display_name AS author_name FROM task_comments c
     JOIN users u ON u.id=c.created_by WHERE c.wedding_id=$1 AND c.archived_at IS NULL ORDER BY c.created_at`, [weddingId]);
   const commentsByTask = new Map();
@@ -274,11 +300,12 @@ app.post('/api/weddings/:weddingId/tasks', async (request, reply) => {
   const user = await requireUser(request, reply); if (!user) return;
   const { weddingId } = request.params;
   await requireMembership(user.id, weddingId, ['owner', 'editor', 'contributor']);
-  const body = z.object({ title:z.string().min(1).max(250), category:z.string().max(80).optional(), priority:z.enum(['Low','Medium','High']).optional(), assignee:z.string().max(100).nullable().optional(), notes:z.string().max(5000).nullable().optional(), linkedVendor:z.string().max(160).nullable().optional(), dueDate:z.string().date().nullable().optional(), status:z.enum(['todo','progress','done']).optional(), position:z.number().int().nonnegative().optional() }).parse(request.body);
+  const body = z.object({ title:z.string().min(1).max(250), category:z.string().max(80).optional(), priority:z.enum(['Low','Medium','High']).optional(), assignee:z.string().max(100).nullable().optional(), assigneeUserId:z.string().uuid().nullable().optional(), notes:z.string().max(5000).nullable().optional(), linkedVendor:z.string().max(160).nullable().optional(), dueDate:z.string().date().nullable().optional(), status:z.enum(['todo','progress','done']).optional(), position:z.number().int().nonnegative().optional() }).parse(request.body);
   const task = await withTransaction(async client => {
+    const assignee = await resolveAssignee(client, weddingId, body.assigneeUserId);
     const position = body.position ?? (await client.query('SELECT COALESCE(MAX(position), -1) + 1 AS position FROM tasks WHERE wedding_id=$1 AND status=$2 AND archived_at IS NULL', [weddingId, body.status || 'todo'])).rows[0].position;
-    const result = await client.query(`INSERT INTO tasks (wedding_id,title,category,priority,assignee,notes,linked_vendor,due_date,status,position,created_by,updated_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11) RETURNING *`, [weddingId,body.title,body.category||'Other',body.priority||'Medium',body.assignee||null,body.notes||null,body.linkedVendor||null,body.dueDate||null,body.status||'todo',position,user.id]);
+    const result = await client.query(`INSERT INTO tasks (wedding_id,title,category,priority,assignee,assignee_user_id,notes,linked_vendor,due_date,status,position,created_by,updated_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING *`, [weddingId,body.title,body.category||'Other',body.priority||'Medium',assignee.name,assignee.id,body.notes||null,body.linkedVendor||null,body.dueDate||null,body.status||'todo',position,user.id]);
     await audit(client,weddingId,user.id,'task',result.rows[0].id,'created');
     return result.rows[0];
   });
@@ -345,11 +372,16 @@ app.patch('/api/weddings/:weddingId/tasks/:taskId', async (request, reply) => {
   const user = await requireUser(request, reply); if (!user) return;
   const { weddingId, taskId } = request.params;
   await requireMembership(user.id, weddingId, ['owner','editor','contributor']);
-  const body = z.object({ title:z.string().min(1).max(250).optional(), category:z.string().max(80).optional(), priority:z.enum(['Low','Medium','High']).optional(), assignee:z.string().max(100).nullable().optional(), notes:z.string().max(5000).nullable().optional(), linkedVendor:z.string().max(160).nullable().optional(), dueDate:z.string().date().nullable().optional(), status:z.enum(['todo','progress','done']).optional(), position:z.number().int().nonnegative().optional() }).parse(request.body);
+  const body = z.object({ title:z.string().min(1).max(250).optional(), category:z.string().max(80).optional(), priority:z.enum(['Low','Medium','High']).optional(), assignee:z.string().max(100).nullable().optional(), assigneeUserId:z.string().uuid().nullable().optional(), notes:z.string().max(5000).nullable().optional(), linkedVendor:z.string().max(160).nullable().optional(), dueDate:z.string().date().nullable().optional(), status:z.enum(['todo','progress','done']).optional(), position:z.number().int().nonnegative().optional() }).parse(request.body);
   const fields={title:body.title,category:body.category,priority:body.priority,assignee:body.assignee,notes:body.notes,linked_vendor:body.linkedVendor,due_date:body.dueDate,status:body.status,position:body.position};
-  const entries=Object.entries(fields).filter(([,value])=>value!==undefined);
-  if(!entries.length)return reply.code(400).send({error:'No changes supplied.'});
   const task=await withTransaction(async client=>{
+    if (body.assigneeUserId !== undefined) {
+      const assignee = await resolveAssignee(client, weddingId, body.assigneeUserId);
+      fields.assignee = assignee.name;
+      fields.assignee_user_id = assignee.id;
+    }
+    const entries=Object.entries(fields).filter(([,value])=>value!==undefined);
+    if(!entries.length) throw httpError('No changes supplied.');
     const values=[weddingId,taskId];
     const sets=entries.map(([column,value],index)=>{values.push(value);return `${column}=$${index+3}`;});
     values.push(user.id);
