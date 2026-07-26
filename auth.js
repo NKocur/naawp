@@ -9,7 +9,7 @@
   if (!topActions) return;
   const appShell = document.querySelector('.app-shell');
   document.body.insertAdjacentHTML('afterbegin', `<section class="auth-gate" id="auth-gate"><div class="auth-gate-card"><p class="eyebrow">ANDREA & NASH</p><h1>Welcome to our wedding workspace.</h1><p>Sign in to plan together, track the details, and keep every decision in one private place.</p><div class="auth-gate-actions"><button class="add-button" id="gate-sign-in">Sign in</button><button class="secondary-button hidden" id="gate-create-account">Create owner account</button></div><small id="gate-help">Your access is protected by Cloudflare and your personal planner account.</small></div></section>`);
-  topActions.insertAdjacentHTML('afterbegin', `<button class="account-button hidden" id="manage-people">People & access</button><button class="account-button" id="open-account">Sign in</button><button class="account-button hidden" id="sign-out">Sign out</button>`);
+  topActions.insertAdjacentHTML('afterbegin', `<button class="account-button hidden" id="manage-people" type="button">People & access</button><button class="account-button" id="open-account" type="button">Sign in</button><button class="account-button hidden" id="sign-out" type="button">Sign out</button>`);
   document.body.insertAdjacentHTML('beforeend', `<dialog class="auth-dialog" id="account-modal"><button class="close-modal" type="button" aria-label="Close">×</button><p class="eyebrow">SHARED WORKSPACE</p><h2 id="account-title">Sign in</h2><p class="auth-help hidden" id="invite-help"></p><form id="account-form"><label>Email<input name="email" type="email" autocomplete="email" required /></label><label>Password<input name="password" type="password" autocomplete="current-password" minlength="12" required /></label><div class="register-only hidden"><label>Your name<input name="displayName" autocomplete="name" /></label><label class="workspace-name">Wedding workspace name<input name="weddingName" placeholder="e.g. Andrea & Nash" /></label></div><p class="auth-error" id="account-error"></p><button class="add-button" type="submit" id="account-submit">Sign in</button><button class="auth-switch" type="button" id="account-switch">Create an account</button></form></dialog>
   <dialog class="auth-dialog people-dialog" id="people-modal"><button class="close-modal" type="button" aria-label="Close">×</button><p class="eyebrow">COLLABORATION</p><h2>People & access</h2><p class="auth-help">Cloudflare controls who reaches the site. Add the same email to Cloudflare Access before sharing an invitation.</p><form id="invite-form" class="invite-form"><label>Email<input name="email" type="email" required placeholder="family@example.com" /></label><label>Role<select name="role"><option value="contributor">Contributor</option><option value="viewer">Viewer</option><option value="editor">Editor</option></select></label><label>Expires in<select name="expiresInDays"><option value="14">14 days</option><option value="7">7 days</option><option value="30">30 days</option></select></label><button class="add-button" type="submit">Create invitation</button></form><p class="auth-error" id="people-error"></p><div class="people-section"><p class="eyebrow">MEMBERS</p><div id="member-list"></div></div><div class="people-section"><p class="eyebrow">PENDING INVITATIONS</p><div id="invitation-list"></div></div></dialog>`);
 
@@ -85,7 +85,18 @@
         button.title = `Signed in as ${user.email}`;
         button.onclick = null;
         signOutButton.classList.remove('hidden');
-        signOutButton.onclick = async () => { await api('/api/auth/logout', { method: 'POST' }); user = null; workspace = null; window.everAfterWorkspaceId = null; peopleButton.classList.add('hidden'); signOutButton.classList.add('hidden'); window.dispatchEvent(new CustomEvent('ever-after-auth-changed', { detail: { user: null, workspace: null } })); await refresh(); };
+        signOutButton.onclick = async event => {
+          event.preventDefault();
+          event.stopPropagation();
+          signOutButton.disabled = true;
+          try {
+            await api('/api/auth/logout', { method: 'POST' });
+            location.replace(location.pathname);
+          } catch (requestError) {
+            window.alert(`Could not sign out: ${requestError.message}`);
+            signOutButton.disabled = false;
+          }
+        };
         peopleButton.classList.toggle('hidden', workspace?.role !== 'owner');
         return;
       }
