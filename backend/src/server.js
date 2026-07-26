@@ -352,6 +352,12 @@ app.delete('/api/weddings/:weddingId/payments/:paymentId', async (request, reply
   await withTransaction(async client=>{const result=await client.query('UPDATE payments SET archived_at=now(),updated_by=$3,updated_at=now() WHERE id=$1 AND wedding_id=$2 AND archived_at IS NULL RETURNING id',[paymentId,weddingId,user.id]);if(!result.rows[0])throw httpError('Payment not found.',404);await audit(client,weddingId,user.id,'payment',paymentId,'archived');});
   reply.code(204).send();
 });
+app.patch('/api/weddings/:weddingId/payments/:paymentId/splits/:splitId', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,paymentId,splitId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const body=z.object({settled:z.boolean()}).parse(request.body);
+  const split=await withTransaction(async client=>{const result=await client.query(`UPDATE payment_splits s SET settled_at=CASE WHEN $4 THEN now() ELSE NULL END,settled_by=CASE WHEN $4 THEN $5 ELSE NULL END FROM payments p WHERE s.id=$1 AND s.payment_id=$2 AND p.id=s.payment_id AND p.wedding_id=$3 AND p.archived_at IS NULL RETURNING s.*`,[splitId,paymentId,weddingId,body.settled,user.id]);if(!result.rows[0])throw httpError('Reimbursement split not found.',404);await audit(client,weddingId,user.id,'payment_split',splitId,body.settled?'settled':'reopened',{paymentId});return result.rows[0];});return {split};
+});
 app.get('/api/weddings/:weddingId/vendors', async (request, reply) => {
   const user=await requireUser(request,reply); if(!user)return;
   const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);

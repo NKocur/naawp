@@ -1,0 +1,2 @@
+ALTER TABLE payment_splits
+  ADD COLUMN IF NOT EXISTS settled_by UUID REFERENCES users(id) ON DELETE SET NULL;
