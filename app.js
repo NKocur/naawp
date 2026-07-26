@@ -484,7 +484,12 @@ async function saveWeddingSettings() {
   try {
     const result=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}`,{method:'PATCH',body:JSON.stringify({name:values.get('names'),weddingDate:values.get('date'),location:values.get('location')})});
     weddingProfile={names:result.wedding.name,date:result.wedding.wedding_date||'',location:result.wedding.location||''};
-    localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile));renderWeddingProfile();document.querySelector('#settings-modal').close();
+    localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile));
+    // Update this page right away, then re-read the active workspace so every
+    // display uses the server's canonical date, name, and location.
+    renderWeddingProfile();
+    await window.everAfterRefresh?.();
+    document.querySelector('#settings-modal').close();
   } catch(error) { window.alert(error.message); }
   finally {button.disabled=false;button.textContent=originalLabel;}
 }

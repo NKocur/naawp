@@ -123,6 +123,9 @@
     document.querySelector('#gate-create-account').classList.toggle('hidden', !workspaceRegistrationOpen);
     if (inviteToken) { setMode('register'); modal.showModal(); }
   };
+  // Other planner modules can request a canonical workspace refresh after they
+  // save shared settings, instead of relying on a browser-local profile copy.
+  window.everAfterRefresh = refresh;
   const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[character]));
   const renderTeamSummary = async () => {
     const list = document.querySelector('#team-list');
