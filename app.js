@@ -126,17 +126,38 @@ function renderSpendBreakdown(){
 function renderDashboardTaskSummary(){const openTasks=tasks.filter(task=>!task[3]);document.querySelector('#nav-task-count').textContent=openTasks.length;document.querySelector('#dashboard-task-total').textContent=openTasks.length;document.querySelector('#dashboard-task-description').textContent=openTasks.length===1?'Open checklist task':'Open checklist tasks';document.querySelector('#dashboard-task-status').textContent=openTasks.length?`Next: ${openTasks[0][0]}`:'Nothing waiting';}
 function renderDashboardPaymentSummary(){const open=expenses.filter(item=>item.committed-item.paid>0),nextVendor=vendors.filter(vendor=>vendor.balance>0&&vendor.due).sort((a,b)=>a.due.localeCompare(b.due))[0];document.querySelector('#dashboard-payment-count').textContent=`across ${open.length} balance${open.length===1?'':'s'}`;document.querySelector('#dashboard-next-payment').innerHTML=nextVendor?`Next due <b>${formatDueDate(nextVendor.due)}</b>`:'No payments due';}
 function renderWeddingProfile(){const date=weddingProfile.date?new Date(`${weddingProfile.date}T12:00:00`):null,today=new Date(),todayStart=new Date(today.getFullYear(),today.getMonth(),today.getDate()),hasDate=date&&!Number.isNaN(date.valueOf()),days=hasDate?Math.max(0,Math.ceil((date-todayStart)/86400000)):null,formatted=hasDate?date.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}):'Date to be decided',dayName=hasDate?date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}):'Set your wedding date',firstName=signedInPlannerName||((weddingProfile.names||'there').split('&')[0].trim().split(' ')[0]),initials=(weddingProfile.names||'OW').split(/\s*&\s*/).map(name=>name.trim()[0]||'').join('').slice(0,2).toUpperCase();document.querySelector('#profile-names').textContent=weddingProfile.names||'Our wedding';document.querySelector('#profile-initials').textContent=initials;document.querySelector('#topbar-names').textContent=(weddingProfile.names||'Our wedding').toUpperCase();document.querySelector('#topbar-wedding-details').innerHTML=`${formatted} <em>·</em> ${weddingProfile.location||'Location to be decided'}`;document.querySelector('#sidebar-event-month').textContent=hasDate?date.toLocaleDateString('en-US',{month:'short'}).toUpperCase():'—';document.querySelector('#sidebar-event-day').textContent=hasDate?date.getDate():'—';document.querySelector('#sidebar-countdown').textContent=hasDate?(days?`in ${days} day${days===1?'':'s'}`:'Today!'):'Add your date';document.querySelector('#dashboard-today').textContent=today.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}).toUpperCase();document.querySelector('#dashboard-greeting').textContent=`Good morning, ${firstName}.`;document.querySelector('#dashboard-countdown').innerHTML=hasDate?`${days} <small>day${days===1?'':'s'}</small>`:'— <small>days</small>';document.querySelector('#dashboard-wedding-date').textContent=dayName;}
-window.addEventListener('ever-after-auth-changed', event=>{
-  const workspace=event.detail?.workspace,user=event.detail?.user,previousProfile={...weddingProfile};
-  signedInPlannerName=user?.display_name?.trim().split(/\s+/)[0]||'';
-  if(!workspace){renderWeddingProfile();return;}
-  localStorage.setItem('everAfterWorkspaceId',workspace.id);
-  // A production workspace is authoritative once it has a value. Preserve legacy browser
-  // details while an older workspace is being migrated, rather than replacing them with blanks.
-  weddingProfile={...previousProfile,names:workspace.name||previousProfile.names||'Our wedding',date:workspace.wedding_date||previousProfile.date||'',location:workspace.location||previousProfile.location||''};
+function applySharedWeddingProfile(workspace) {
+  if (!workspace?.id) return false;
+  localStorage.setItem('everAfterWorkspaceId', workspace.id);
+  // The server is the source of truth for a signed-in workspace. Do not allow
+  // an old browser-local placeholder to replace a real saved wedding date.
+  weddingProfile={
+    names:workspace.name || 'Our wedding',
+    date:workspace.wedding_date || '',
+    location:workspace.location || ''
+  };
   localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile));
   renderWeddingProfile();
+  return true;
+}
+async function syncSharedWeddingProfile() {
+  if (!window.everAfterApi || !window.everAfterUser) return;
+  try {
+    const result=await window.everAfterApi('/api/weddings');
+    applySharedWeddingProfile(result.weddings?.[0]);
+  } catch (error) {
+    console.error('Could not refresh shared wedding details',error);
+  }
+}
+window.addEventListener('ever-after-auth-changed', event=>{
+  signedInPlannerName=event.detail?.user?.display_name?.trim().split(/\s+/)[0]||'';
+  if(!applySharedWeddingProfile(event.detail?.workspace)) renderWeddingProfile();
 });
+// The auth script loads after this file. These independent refreshes make the
+// profile resilient if its initial auth event arrives before a browser finishes
+// restoring this page, and keep another owner's open tab current on return.
+window.addEventListener('pageshow',()=>setTimeout(syncSharedWeddingProfile,0));
+window.addEventListener('focus',syncSharedWeddingProfile);
 function renderRingBudget(){const ringExpenses=expenses.filter(item=>item.category==='Rings'),committed=ringExpenses.reduce((sum,item)=>sum+item.committed,0),budget=weddingSettings.budget?Math.max(committed,ringExpenses.reduce((sum,item)=>sum+item.committed,0)):committed,values=document.querySelector('#ring-checklist')?.nextElementSibling?.querySelectorAll('b');if(values?.length>=2){values[0].textContent=money(budget);values[1].textContent=money(committed);}}
 function archiveRecord(type,data){archivedRecords.unshift({id:crypto.randomUUID(),type,data,archivedAt:new Date().toISOString()});archivedRecords=archivedRecords.slice(0,100);localStorage.setItem('everAfterArchivedRecords',JSON.stringify(archivedRecords));logActivity(`Archived ${type}`);}
 function renderArchiveManager(){const form=document.querySelector('#settings-form');let manager=document.querySelector('#archive-manager');if(!manager){manager=document.createElement('div');manager.id='archive-manager';form.append(manager);}manager.innerHTML=`<p class="eyebrow settings-divider">ARCHIVE</p><p class="settings-copy">Restore recently archived planning records.</p>${archivedRecords.map(record=>`<div class="archive-item"><span><b>${record.type}</b><small>${new Date(record.archivedAt).toLocaleDateString()}</small></span><button type="button" data-restore-record="${record.id}">Restore</button></div>`).join('') || '<small class="form-note">No archived records.</small>'}`;document.querySelectorAll('[data-restore-record]').forEach(button=>button.onclick=()=>restoreArchivedRecord(button.dataset.restoreRecord));}
