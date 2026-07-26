@@ -186,6 +186,15 @@ app.get('/api/weddings/:weddingId/collaboration', async (request, reply) => {
   ]);
   return { members: members.rows, invitations: invitations.rows };
 });
+app.get('/api/weddings/:weddingId/members', async (request, reply) => {
+  const user = await requireUser(request, reply); if (!user) return;
+  const { weddingId } = request.params;
+  await requireMembership(user.id, weddingId, allRoles);
+  const members = await query(`SELECT u.id,u.email,u.display_name,m.role
+    FROM memberships m JOIN users u ON u.id=m.user_id
+    WHERE m.wedding_id=$1 ORDER BY u.display_name,u.email`, [weddingId]);
+  return { members: members.rows };
+});
 app.post('/api/weddings/:weddingId/invitations', { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } }, async (request, reply) => {
   const user = await ownerUser(request, reply); if (!user) return;
   const { weddingId } = request.params;

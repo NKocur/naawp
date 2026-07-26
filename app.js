@@ -56,6 +56,7 @@ let weddingProfile = JSON.parse(localStorage.getItem('everAfterWeddingProfile') 
 let tasks = JSON.parse(localStorage.getItem('everAfterTasks') || 'null') || [];
 let sharedTasksActive = false;
 let sharedTaskWorkspaceId = null;
+let taskAssignees = [];
 tasks = tasks.map(task=>{if(!task[4])task[4]=task[3]?'done':'todo';if(!task[5])task[5]=[];if(!task[6])task[6]='Medium';if(!task[7])task[7]='Andrea';if(!task[8])task[8]='';if(!task[9])task[9]='';if(!task[10])task[10]='';return task;});
 localStorage.setItem('everAfterTasks',JSON.stringify(tasks));
 let payments = JSON.parse(localStorage.getItem('everAfterPayments') || 'null') || [];
@@ -376,3 +377,19 @@ function editTaskComment(taskIndex,commentIndex) { activeTaskCommentIndex=taskIn
 async function deleteTaskComment(taskIndex,commentIndex) { const task=tasks[taskIndex],comment=task?.[5]?.[commentIndex]; if(!comment || !window.confirm('Archive this comment?')) return; try { if(sharedTasksActive) { await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/comments/${comment.id}`,{method:'DELETE'}); await loadSharedTasks(); } else { task[5].splice(commentIndex,1); localStorage.setItem('everAfterTasks',JSON.stringify(tasks)); renderTasks(); } } catch(error) { window.alert(error.message); } }
 document.querySelector('#task-comment-form').addEventListener('submit', async event => { event.preventDefault(); event.stopImmediatePropagation(); const form=event.currentTarget, task=tasks[activeTaskCommentIndex], text=new FormData(form).get('text'); try { if(sharedTasksActive) { const comment=editingTaskCommentIndex === null ? null : task?.[5]?.[editingTaskCommentIndex]; const path=comment ? `/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/comments/${comment.id}` : `/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/comments`; await window.everAfterApi(path,{method:comment?'PATCH':'POST',body:JSON.stringify({body:text})}); await loadSharedTasks(); } else { const comment={author:new FormData(form).get('author'),text}; if(editingTaskCommentIndex===null) task[5]=[...(task[5]||[]),comment]; else task[5][editingTaskCommentIndex]=comment; localStorage.setItem('everAfterTasks',JSON.stringify(tasks)); renderTasks(); } form.reset(); document.querySelector('#task-comment-modal').close(); editingTaskCommentIndex=null; } catch(error) { window.alert(error.message); } },{capture:true});
 window.addEventListener('ever-after-auth-changed', event => { sharedTaskWorkspaceId=event.detail?.workspace?.id || null; window.everAfterWorkspaceRole=event.detail?.workspace?.role || null; sharedTasksActive=Boolean(sharedTaskWorkspaceId); if(sharedTasksActive) loadSharedTasks().catch(error=>console.error('Could not load shared tasks',error)); });
+async function loadTaskAssignees() {
+  if (!sharedTaskWorkspaceId || !window.everAfterApi) return;
+  const result = await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/members`);
+  taskAssignees = result.members.map(member => member.display_name).filter(Boolean);
+  setTaskAssigneeOptions(document.querySelector('#entry-form').elements.assignee.value);
+}
+function setTaskAssigneeOptions(selected = 'Unassigned') {
+  const select = document.querySelector('#entry-form').elements.assignee;
+  const names = [...new Set(taskAssignees)];
+  const escapeOption = value => String(value).replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[character]));
+  select.innerHTML = `<option value="Unassigned">Unassigned</option>${names.map(name => `<option value="${escapeOption(name)}">${escapeOption(name)}</option>`).join('')}`;
+  select.value = names.includes(selected) ? selected : 'Unassigned';
+}
+function showTaskModal() { editingTaskIndex=null; const form=document.querySelector('#entry-form'); document.querySelector('#entry-type').disabled=false; setEntryType('task'); form.reset(); setTaskAssigneeOptions('Unassigned'); document.querySelector('#entry-modal').showModal(); }
+function editTask(index) { const task=tasks[index],form=document.querySelector('#entry-form'); editingTaskIndex=index; document.querySelector('#entry-type').disabled=true; setEntryType('task'); document.querySelector('#modal-title').textContent='Edit task'; document.querySelector('#save-entry').textContent='Save changes'; form.elements.description.value=task[0]; form.elements.category.value=task[1].toLowerCase().replace(/\b\w/g,letter=>letter.toUpperCase()); form.elements.priority.value=task[6]||'Medium'; setTaskAssigneeOptions(task[7]||'Unassigned'); form.elements.dueDate.value=task[10]||''; form.elements.vendor.value=task[9]||''; form.elements.notes.value=task[8]||''; document.querySelector('#entry-modal').showModal(); }
+window.addEventListener('ever-after-auth-changed', event => { const member=event.detail?.user; taskAssignees=member?.display_name?[member.display_name]:[]; if(sharedTaskWorkspaceId) loadTaskAssignees().catch(error=>console.error('Could not load workspace members',error)); });
