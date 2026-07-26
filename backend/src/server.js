@@ -291,6 +291,29 @@ app.delete('/api/weddings/:weddingId/expenses/:expenseId', async (request, reply
   await withTransaction(async client=>{const result=await client.query('UPDATE expenses SET archived_at=now(),updated_by=$3,updated_at=now() WHERE wedding_id=$1 AND id=$2 AND archived_at IS NULL RETURNING id',[weddingId,expenseId,user.id]);if(!result.rows[0])throw httpError('Expense not found.',404);await audit(client,weddingId,user.id,'expense',expenseId,'archived');});
   reply.code(204).send();
 });
+app.get('/api/weddings/:weddingId/payments', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const result=await query(`SELECT p.*,e.name AS expense_name,v.name AS vendor_name,u.display_name AS payer_name,
+    COALESCE((SELECT SUM(s.amount) FROM payment_splits s WHERE s.payment_id=p.id AND s.settled_at IS NULL),0)::numeric AS reimbursement_owed
+    FROM payments p LEFT JOIN expenses e ON e.id=p.expense_id LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.payer_user_id
+    WHERE p.wedding_id=$1 AND p.archived_at IS NULL ORDER BY p.paid_on DESC,p.created_at DESC`,[weddingId]);
+  return {payments:result.rows};
+});
+app.post('/api/weddings/:weddingId/payments', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const body=z.object({expenseId:z.string().uuid().nullable().optional(),vendorId:z.string().uuid().nullable().optional(),payerUserId:z.string().uuid().nullable().optional(),payerLabel:z.string().max(100).nullable().optional(),amount:z.number().positive(),currency:z.string().regex(/^[A-Z]{3}$/).optional(),paidOn:z.string().date().optional(),method:z.string().max(100).nullable().optional(),notes:z.string().max(5000).nullable().optional(),splits:z.array(z.object({owedByUserId:z.string().uuid().nullable().optional(),owedByLabel:z.string().max(100).nullable().optional(),amount:z.number().positive()})).max(20).optional()}).parse(request.body);
+  if ((body.splits||[]).reduce((sum,split)=>sum+split.amount,0) > body.amount) throw httpError('Repayment splits cannot exceed the payment amount.');
+  const payment=await withTransaction(async client=>{const result=await client.query(`INSERT INTO payments (wedding_id,expense_id,vendor_id,payer_user_id,payer_label,amount,currency,paid_on,method,notes,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11) RETURNING *`,[weddingId,body.expenseId||null,body.vendorId||null,body.payerUserId||null,body.payerLabel||null,body.amount,body.currency||'USD',body.paidOn||new Date().toISOString().slice(0,10),body.method||null,body.notes||null,user.id]);for(const split of body.splits||[])await client.query('INSERT INTO payment_splits (payment_id,owed_by_user_id,owed_by_label,amount) VALUES ($1,$2,$3,$4)',[result.rows[0].id,split.owedByUserId||null,split.owedByLabel||null,split.amount]);await audit(client,weddingId,user.id,'payment',result.rows[0].id,'created',{amount:body.amount,splitCount:(body.splits||[]).length});return result.rows[0];});
+  reply.code(201).send({payment});
+});
+app.delete('/api/weddings/:weddingId/payments/:paymentId', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,paymentId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  await withTransaction(async client=>{const result=await client.query('UPDATE payments SET archived_at=now(),updated_by=$3,updated_at=now() WHERE id=$1 AND wedding_id=$2 AND archived_at IS NULL RETURNING id',[paymentId,weddingId,user.id]);if(!result.rows[0])throw httpError('Payment not found.',404);await audit(client,weddingId,user.id,'payment',paymentId,'archived');});
+  reply.code(204).send();
+});
 app.post('/api/weddings/:weddingId/invitations', { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } }, async (request, reply) => {
   const user = await ownerUser(request, reply); if (!user) return;
   const { weddingId } = request.params;
