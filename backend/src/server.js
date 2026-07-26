@@ -381,6 +381,34 @@ app.delete('/api/weddings/:weddingId/vendors/:vendorId', async (request, reply) 
   await withTransaction(async client=>{const result=await client.query('UPDATE vendors SET archived_at=now(),updated_by=$3,updated_at=now() WHERE wedding_id=$1 AND id=$2 AND archived_at IS NULL RETURNING id',[weddingId,vendorId,user.id]);if(!result.rows[0])throw httpError('Vendor not found.',404);await audit(client,weddingId,user.id,'vendor',vendorId,'archived');});
   reply.code(204).send();
 });
+app.get('/api/weddings/:weddingId/vendor-quotes', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const result=await query(`SELECT q.*,v.name AS vendor_name FROM vendor_quotes q JOIN vendors v ON v.id=q.vendor_id
+    WHERE q.wedding_id=$1 AND q.archived_at IS NULL ORDER BY q.expires_on NULLS LAST,q.created_at DESC`,[weddingId]);
+  return {quotes:result.rows};
+});
+app.post('/api/weddings/:weddingId/vendor-quotes', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const body=z.object({vendorId:z.string().uuid(),title:z.string().trim().min(1).max(200),amount:z.number().nonnegative().optional(),currency:z.string().regex(/^[A-Z]{3}$/).optional(),expiresOn:z.string().date().nullable().optional(),notes:z.string().max(5000).nullable().optional()}).parse(request.body);
+  const quote=await withTransaction(async client=>{const vendor=await client.query('SELECT id FROM vendors WHERE id=$1 AND wedding_id=$2 AND archived_at IS NULL',[body.vendorId,weddingId]);if(!vendor.rows[0])throw httpError('Vendor not found.',404);const result=await client.query(`INSERT INTO vendor_quotes (wedding_id,vendor_id,title,amount,currency,expires_on,notes,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING *`,[weddingId,body.vendorId,body.title,body.amount||0,body.currency||'USD',body.expiresOn||null,body.notes||null,user.id]);await audit(client,weddingId,user.id,'vendor_quote',result.rows[0].id,'created',{vendorId:body.vendorId});return result.rows[0];});
+  reply.code(201).send({quote});
+});
+app.patch('/api/weddings/:weddingId/vendor-quotes/:quoteId', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,quoteId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const body=z.object({title:z.string().trim().min(1).max(200).optional(),amount:z.number().nonnegative().optional(),currency:z.string().regex(/^[A-Z]{3}$/).optional(),expiresOn:z.string().date().nullable().optional(),notes:z.string().max(5000).nullable().optional()}).parse(request.body);
+  const fields={title:body.title,amount:body.amount,currency:body.currency,expires_on:body.expiresOn,notes:body.notes},entries=Object.entries(fields).filter(([,value])=>value!==undefined);if(!entries.length)throw httpError('No changes supplied.');
+  const quote=await withTransaction(async client=>{const values=[weddingId,quoteId],sets=entries.map(([column,value],index)=>{values.push(value);return `${column}=$${index+3}`;});values.push(user.id);const result=await client.query(`UPDATE vendor_quotes SET ${sets.join(',')},updated_by=$${values.length},updated_at=now() WHERE wedding_id=$1 AND id=$2 AND archived_at IS NULL RETURNING *`,values);if(!result.rows[0])throw httpError('Quote not found.',404);await audit(client,weddingId,user.id,'vendor_quote',quoteId,'updated',{fields:entries.map(([column])=>column)});return result.rows[0];});
+  return {quote};
+});
+app.delete('/api/weddings/:weddingId/vendor-quotes/:quoteId', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,quoteId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  await withTransaction(async client=>{const result=await client.query('UPDATE vendor_quotes SET archived_at=now(),updated_by=$3,updated_at=now() WHERE wedding_id=$1 AND id=$2 AND archived_at IS NULL RETURNING id',[weddingId,quoteId,user.id]);if(!result.rows[0])throw httpError('Quote not found.',404);await audit(client,weddingId,user.id,'vendor_quote',quoteId,'archived');});
+  reply.code(204).send();
+});
 app.post('/api/weddings/:weddingId/invitations', { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } }, async (request, reply) => {
   const user = await ownerUser(request, reply); if (!user) return;
   const { weddingId } = request.params;
