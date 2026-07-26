@@ -100,17 +100,34 @@
           }
         };
         peopleButton.classList.toggle('hidden', workspace?.role !== 'owner');
+        renderTeamSummary();
         return;
       }
     } catch { /* The local demo remains usable when the API is unavailable. */ }
     try { workspaceRegistrationOpen = (await api('/api/auth/setup')).workspaceCreationOpen; } catch { workspaceRegistrationOpen = false; }
     user = null; workspace = null; window.everAfterWorkspaceId = null; setGate(true);
+    document.querySelector('#team-list').innerHTML = '<p class="empty-state">Sign in to see the people planning with you.</p>';
     peopleButton.classList.add('hidden'); signOutButton.classList.add('hidden'); button.textContent = 'Sign in'; button.title = 'Sign in to the production workspace';
     button.onclick = () => { setMode(inviteToken ? 'register' : 'login'); modal.showModal(); };
     document.querySelector('#gate-create-account').classList.toggle('hidden', !workspaceRegistrationOpen);
     if (inviteToken) { setMode('register'); modal.showModal(); }
   };
   const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[character]));
+  const renderTeamSummary = async () => {
+    const list = document.querySelector('#team-list');
+    const inviteControls = [document.querySelector('#invite-button'), document.querySelector('#invite-wide')];
+    if (!user || !workspace) { list.innerHTML = '<p class="empty-state">Sign in to see the people planning with you.</p>'; return; }
+    let members = [{ ...user, role: workspace.role }];
+    if (workspace.role === 'owner') {
+      try { members = (await api(`/api/weddings/${workspace.id}/collaboration`)).members; } catch { /* Keep the signed-in owner visible if the request is unavailable. */ }
+    }
+    list.innerHTML = members.map(member => {
+      const initials = (member.display_name || member.email).split(/\s+/).map(part => part[0] || '').join('').slice(0, 2).toUpperCase();
+      const label = member.role[0].toUpperCase() + member.role.slice(1);
+      return `<div class="team-list"><span class="avatar sage">${escapeHtml(initials)}</span><div><strong>${escapeHtml(member.display_name)}</strong><small>${label}</small></div>${member.id === user.id ? '<span class="status">You</span>' : ''}</div>`;
+    }).join('');
+    inviteControls.forEach(control => control.classList.toggle('hidden', workspace.role !== 'owner'));
+  };
 
   document.querySelector('#account-modal .close-modal').onclick = () => modal.close();
   document.querySelector('#people-modal .close-modal').onclick = () => peopleModal.close();
