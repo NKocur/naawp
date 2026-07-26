@@ -15,7 +15,7 @@ Turn the deployed wedding planner into a shared workspace for Andrea, Nash, and 
 
 ## Important current limitation
 
-Most planner screens still save information in the current browser's local storage. The existing browser UI must not yet be treated as shared collaboration: a family member can be allowed through Cloudflare but will not reliably see or edit the same ideas, finances, vendors, or attachments.
+Tasks, finances, vendors/quotes, idea boards, honeymoon planning, guests, and day-of contacts now have shared server-backed panels. Retired browser-local widgets for fully migrated modules are hidden after sign-in so they cannot be mistaken for live data. Rings, attire, the remaining day-of schedule, and some legacy budget/detail widgets are still local-only and are labelled accordingly.
 
 ## Collaboration model
 
