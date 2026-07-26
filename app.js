@@ -136,14 +136,6 @@ window.addEventListener('ever-after-auth-changed', event=>{
   weddingProfile={...previousProfile,names:workspace.name||previousProfile.names||'Our wedding',date:workspace.wedding_date||previousProfile.date||'',location:workspace.location||previousProfile.location||''};
   localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile));
   renderWeddingProfile();
-  const legacyDetails={};
-  if(!workspace.wedding_date&&previousProfile.date)legacyDetails.weddingDate=previousProfile.date;
-  if(!workspace.location&&previousProfile.location)legacyDetails.location=previousProfile.location;
-  if(workspace.role==='owner'&&Object.keys(legacyDetails).length&&window.everAfterApi){
-    window.everAfterApi(`/api/weddings/${workspace.id}`,{method:'PATCH',body:JSON.stringify(legacyDetails)})
-      .then(result=>{weddingProfile={...weddingProfile,names:result.wedding.name||weddingProfile.names,date:result.wedding.wedding_date||weddingProfile.date,location:result.wedding.location||weddingProfile.location};localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile));renderWeddingProfile();})
-      .catch(error=>console.error('Could not migrate legacy wedding details',error));
-  }
 });
 function renderRingBudget(){const ringExpenses=expenses.filter(item=>item.category==='Rings'),committed=ringExpenses.reduce((sum,item)=>sum+item.committed,0),budget=weddingSettings.budget?Math.max(committed,ringExpenses.reduce((sum,item)=>sum+item.committed,0)):committed,values=document.querySelector('#ring-checklist')?.nextElementSibling?.querySelectorAll('b');if(values?.length>=2){values[0].textContent=money(budget);values[1].textContent=money(committed);}}
 function archiveRecord(type,data){archivedRecords.unshift({id:crypto.randomUUID(),type,data,archivedAt:new Date().toISOString()});archivedRecords=archivedRecords.slice(0,100);localStorage.setItem('everAfterArchivedRecords',JSON.stringify(archivedRecords));logActivity(`Archived ${type}`);}
