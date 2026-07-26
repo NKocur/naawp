@@ -440,6 +440,9 @@ async function loadSharedFinanceSummary() {
   let panel=document.querySelector('#shared-finance-summary');
   if(!panel){panel=document.createElement('section');panel.id='shared-finance-summary';panel.className='panel';budget.querySelector('.page-heading').insertAdjacentElement('afterend',panel);}
   panel.innerHTML=`<p class="eyebrow">SHARED FINANCE PREVIEW</p><h2>${money(summary.committed)} committed <small>· ${money(summary.paid)} paid · ${money(summary.stillOwed)} still owed</small></h2><p>These totals come from the shared server records. Budget editing will move here as the finance UI migration continues.</p>`;
+  const records=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/expenses`); let list=document.querySelector('#shared-expense-list');
+  if(!list){list=document.createElement('section');list.id='shared-expense-list';list.className='panel';panel.insertAdjacentElement('afterend',list);}
+  list.innerHTML=`<p class="eyebrow">SHARED EXPENSES</p><h2>Server records</h2>${records.expenses.map(item=>`<div class="owed-item"><span>$</span><div><strong>${escapeTaskHtml(item.name)}</strong><small>${escapeTaskHtml(item.category)} · ${escapeTaskHtml(item.stage)}${item.due_date?` · due ${escapeTaskHtml(item.due_date)}`:''}</small></div><b>${money(Number(item.committed))}</b></div>`).join('')||'<p class="empty-state">No shared expenses yet.</p>'}`;
 }
 window.addEventListener('ever-after-auth-changed',()=>loadSharedFinanceSummary().catch(error=>console.error('Could not load shared finance summary',error)));
 function formatAttachmentSize(bytes) { return bytes < 1024 * 1024 ? `${Math.max(1,Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`; }
