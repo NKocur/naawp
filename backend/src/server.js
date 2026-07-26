@@ -301,7 +301,8 @@ app.get('/api/weddings/:weddingId/payments', async (request, reply) => {
   const user=await requireUser(request,reply); if(!user)return;
   const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
   const result=await query(`SELECT p.*,e.name AS expense_name,v.name AS vendor_name,u.display_name AS payer_name,
-    COALESCE((SELECT SUM(s.amount) FROM payment_splits s WHERE s.payment_id=p.id AND s.settled_at IS NULL),0)::numeric AS reimbursement_owed
+    COALESCE((SELECT SUM(s.amount) FROM payment_splits s WHERE s.payment_id=p.id AND s.settled_at IS NULL),0)::numeric AS reimbursement_owed,
+    COALESCE((SELECT json_agg(json_build_object('id',s.id,'amount',s.amount,'settledAt',s.settled_at,'owedByUserId',s.owed_by_user_id,'owedByLabel',s.owed_by_label,'owedByName',ou.display_name) ORDER BY s.created_at) FROM payment_splits s LEFT JOIN users ou ON ou.id=s.owed_by_user_id WHERE s.payment_id=p.id),'[]'::json) AS splits
     FROM payments p LEFT JOIN expenses e ON e.id=p.expense_id LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.payer_user_id
     WHERE p.wedding_id=$1 AND p.archived_at IS NULL ORDER BY p.paid_on DESC,p.created_at DESC`,[weddingId]);
   return {payments:result.rows};
@@ -317,8 +318,19 @@ app.post('/api/weddings/:weddingId/payments', async (request, reply) => {
 app.patch('/api/weddings/:weddingId/payments/:paymentId', async (request, reply) => {
   const user=await requireUser(request,reply); if(!user)return;
   const {weddingId,paymentId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
-  const body=z.object({expenseId:z.string().uuid().nullable().optional(),vendorId:z.string().uuid().nullable().optional(),payerUserId:z.string().uuid().nullable().optional(),payerLabel:z.string().max(100).nullable().optional(),amount:z.number().positive().optional(),currency:z.string().regex(/^[A-Z]{3}$/).optional(),paidOn:z.string().date().optional(),method:z.string().max(100).nullable().optional(),notes:z.string().max(5000).nullable().optional()}).parse(request.body);
-  const payment=await withTransaction(async client=>{const fields={expense_id:body.expenseId,vendor_id:body.vendorId,amount:body.amount,currency:body.currency,paid_on:body.paidOn,method:body.method,notes:body.notes};if(body.payerUserId!==undefined||body.payerLabel!==undefined){const payer=await resolveFinanceMember(client,weddingId,body.payerUserId,body.payerLabel,'payer');fields.payer_user_id=payer.userId;fields.payer_label=payer.label;}const entries=Object.entries(fields).filter(([,value])=>value!==undefined);if(!entries.length)throw httpError('No changes supplied.');const values=[paymentId,weddingId],sets=entries.map(([column,value],index)=>{values.push(value);return `${column}=$${index+3}`;});values.push(user.id);const result=await client.query(`UPDATE payments SET ${sets.join(',')},updated_by=$${values.length},updated_at=now() WHERE id=$1 AND wedding_id=$2 AND archived_at IS NULL RETURNING *`,values);if(!result.rows[0])throw httpError('Payment not found.',404);await audit(client,weddingId,user.id,'payment',paymentId,'updated',{fields:entries.map(([column])=>column)});return result.rows[0];});
+  const body=z.object({expenseId:z.string().uuid().nullable().optional(),vendorId:z.string().uuid().nullable().optional(),payerUserId:z.string().uuid().nullable().optional(),payerLabel:z.string().max(100).nullable().optional(),amount:z.number().positive().optional(),currency:z.string().regex(/^[A-Z]{3}$/).optional(),paidOn:z.string().date().optional(),method:z.string().max(100).nullable().optional(),notes:z.string().max(5000).nullable().optional(),splits:z.array(z.object({owedByUserId:z.string().uuid().nullable().optional(),owedByLabel:z.string().max(100).nullable().optional(),amount:z.number().positive()})).max(20).optional()}).parse(request.body);
+  if(body.splits&&body.amount!==undefined&&body.splits.reduce((sum,split)=>sum+split.amount,0)>body.amount)throw httpError('Repayment splits cannot exceed the payment amount.');
+  const payment=await withTransaction(async client=>{
+    const fields={expense_id:body.expenseId,vendor_id:body.vendorId,amount:body.amount,currency:body.currency,paid_on:body.paidOn,method:body.method,notes:body.notes};
+    if(body.payerUserId!==undefined||body.payerLabel!==undefined){const payer=await resolveFinanceMember(client,weddingId,body.payerUserId,body.payerLabel,'payer');fields.payer_user_id=payer.userId;fields.payer_label=payer.label;}
+    const entries=Object.entries(fields).filter(([,value])=>value!==undefined); if(!entries.length&&body.splits===undefined)throw httpError('No changes supplied.');
+    const values=[paymentId,weddingId],sets=entries.map(([column,value],index)=>{values.push(value);return `${column}=$${index+3}`;}); values.push(user.id);
+    const setClause=sets.length?sets.join(','):'updated_at=now()';
+    const result=await client.query(`UPDATE payments SET ${setClause},updated_by=$${values.length},updated_at=now() WHERE id=$1 AND wedding_id=$2 AND archived_at IS NULL RETURNING *`,values);
+    if(!result.rows[0])throw httpError('Payment not found.',404);
+    if(body.splits!==undefined){await client.query('DELETE FROM payment_splits WHERE payment_id=$1',[paymentId]);for(const split of body.splits){const owingMember=await resolveFinanceMember(client,weddingId,split.owedByUserId,split.owedByLabel,'person who owes');await client.query('INSERT INTO payment_splits (payment_id,owed_by_user_id,owed_by_label,amount) VALUES ($1,$2,$3,$4)',[paymentId,owingMember.userId,owingMember.label,split.amount]);}}
+    const changedFields=[...entries.map(([column])=>column),...(body.splits!==undefined?['splits']:[])]; await audit(client,weddingId,user.id,'payment',paymentId,'updated',{fields:changedFields}); return result.rows[0];
+  });
   return {payment};
 });
 app.delete('/api/weddings/:weddingId/payments/:paymentId', async (request, reply) => {
