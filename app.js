@@ -48,15 +48,15 @@ const defaultItineraryItems = [
   { title: 'Check in and explore Positano', date: '2027-10-04', note: 'Keep the evening unplanned' },
   { title: 'Capri day cruise', date: '2027-10-06', note: 'Reservation pending' },
 ];
-let expenses = JSON.parse(localStorage.getItem('everAfterExpenses') || 'null') || defaultExpenses;
+let expenses = JSON.parse(localStorage.getItem('everAfterExpenses') || 'null') || [];
 expenses = expenses.map(item => ({ ...item, paidBy: ({ 'Jamie & Lee': 'Andrea & Nash', Jamie: 'Andrea', Lee: 'Nash' })[item.paidBy] || item.paidBy }));
 localStorage.setItem('everAfterExpenses', JSON.stringify(expenses));
-let weddingSettings = JSON.parse(localStorage.getItem('everAfterWeddingSettings') || 'null') || { budget: 35000 };
-let weddingProfile = JSON.parse(localStorage.getItem('everAfterWeddingProfile') || 'null') || { names: 'Andrea & Nash', date: '2026-10-18', location: 'Manila' };
-let tasks = JSON.parse(localStorage.getItem('everAfterTasks') || 'null') || defaultTasks;
+let weddingSettings = JSON.parse(localStorage.getItem('everAfterWeddingSettings') || 'null') || { budget: 0 };
+let weddingProfile = JSON.parse(localStorage.getItem('everAfterWeddingProfile') || 'null') || { names: 'Our wedding', date: '', location: '' };
+let tasks = JSON.parse(localStorage.getItem('everAfterTasks') || 'null') || [];
 tasks = tasks.map(task=>{if(!task[4])task[4]=task[3]?'done':'todo';if(!task[5])task[5]=[];if(!task[6])task[6]='Medium';if(!task[7])task[7]='Andrea';if(!task[8])task[8]='';if(!task[9])task[9]='';if(!task[10])task[10]='';return task;});
 localStorage.setItem('everAfterTasks',JSON.stringify(tasks));
-let payments = JSON.parse(localStorage.getItem('everAfterPayments') || 'null') || defaultPayments;
+let payments = JSON.parse(localStorage.getItem('everAfterPayments') || 'null') || [];
 let paymentSchedules = JSON.parse(localStorage.getItem('everAfterPaymentSchedules') || 'null') || [];
 let reimbursements = JSON.parse(localStorage.getItem('everAfterReimbursements') || 'null') || [];
 let archivedRecords = JSON.parse(localStorage.getItem('everAfterArchivedRecords') || 'null') || [];
@@ -66,19 +66,19 @@ let activeTaskCommentIndex = null;
 let editingTaskCommentIndex = null;
 let editingPaymentIndex = null;
 let showAllPayments = false;
-let vendors = JSON.parse(localStorage.getItem('everAfterVendors') || 'null') || defaultVendors;
+let vendors = JSON.parse(localStorage.getItem('everAfterVendors') || 'null') || [];
 vendors = vendors.map(vendor=>({ ...vendor, quoteFiles: vendor.quoteFiles || [] }));
 localStorage.setItem('everAfterVendors',JSON.stringify(vendors));
 let editingVendorIndex = null;
 let activeVendorIndex = null;
 let editingVendorQuoteIndex = null;
-let quotes = JSON.parse(localStorage.getItem('everAfterQuotes') || 'null') || defaultQuotes;
+let quotes = JSON.parse(localStorage.getItem('everAfterQuotes') || 'null') || [];
 let editingQuoteIndex = null;
-let reservations = JSON.parse(localStorage.getItem('everAfterReservations') || 'null') || defaultReservations;
+let reservations = JSON.parse(localStorage.getItem('everAfterReservations') || 'null') || [];
 reservations = reservations.map(item=>{const total=Number(item.total ?? item.balance ?? 0),paid=Math.min(Number(item.paid ?? 0),total);return {...item,total,paid,balance:Math.max(0,total-paid)};});
 localStorage.setItem('everAfterReservations',JSON.stringify(reservations));
 let editingReservationIndex = null;
-let ideaBoards = JSON.parse(localStorage.getItem('everAfterIdeaBoards') || 'null') || defaultIdeaBoards;
+let ideaBoards = JSON.parse(localStorage.getItem('everAfterIdeaBoards') || 'null') || [];
 ideaBoards = ideaBoards.map(board=>({ ...board, attachments: board.attachments || (board.image ? [{ id: crypto.randomUUID(), name: board.name, caption: board.note || '', source: board.source || '', data: board.image, mime: 'image/*' }] : []) }));
 localStorage.setItem('everAfterIdeaBoards',JSON.stringify(ideaBoards));
 let editingIdeaBoardIndex = null;
@@ -86,27 +86,24 @@ let activeIdeaBoardIndex = null;
 let editingIdeaAttachmentIndex = null;
 let activeIdeaAttachmentIndex = null;
 let editingIdeaCommentIndex = null;
-let ringItems = JSON.parse(localStorage.getItem('everAfterRingItems') || 'null') || defaultRingItems;
+let ringItems = JSON.parse(localStorage.getItem('everAfterRingItems') || 'null') || [];
 let editingRingItemIndex = null;
-let attireAppointments = JSON.parse(localStorage.getItem('everAfterAttireAppointments') || 'null') || defaultAttireAppointments;
+let attireAppointments = JSON.parse(localStorage.getItem('everAfterAttireAppointments') || 'null') || [];
 let editingAttireIndex = null;
-let itineraryItems = JSON.parse(localStorage.getItem('everAfterItineraryItems') || 'null') || defaultItineraryItems;
+let itineraryItems = JSON.parse(localStorage.getItem('everAfterItineraryItems') || 'null') || [];
 let editingItineraryIndex = null;
-let honeymoon = JSON.parse(localStorage.getItem('everAfterHoneymoon') || 'null') || { destination: 'Amalfi Coast, Italy', dates: 'October 2027', description: '8 nights · Positano, Capri & Ravello', budget: 6000, committed: 2320 };
+let honeymoon = JSON.parse(localStorage.getItem('everAfterHoneymoon') || 'null') || { destination: '', dates: '', description: '', budget: 0, committed: 0 };
 if(honeymoon.otherCommitted===undefined)honeymoon.otherCommitted=Math.max(0,(honeymoon.committed||0)-reservations.reduce((sum,item)=>sum+item.total,0));
 localStorage.setItem('everAfterHoneymoon',JSON.stringify(honeymoon));
-let packingItems = JSON.parse(localStorage.getItem('everAfterPackingItems') || 'null') || [{title:'Passports',note:'Check expiry dates',complete:false},{title:'Travel adapters',note:'Type C and Type G',complete:false}];
+let packingItems = JSON.parse(localStorage.getItem('everAfterPackingItems') || 'null') || [];
 let editingPackingIndex = null;
-let travelDocuments = JSON.parse(localStorage.getItem('everAfterTravelDocuments') || 'null') || [{title:'Travel insurance',note:'Choose and save policy number',status:'To do'},{title:'Flight confirmations',note:'Save offline copies',status:'To do'}];
+let travelDocuments = JSON.parse(localStorage.getItem('everAfterTravelDocuments') || 'null') || [];
 let editingTravelDocumentIndex = null;
-let guests = JSON.parse(localStorage.getItem('everAfterGuests') || 'null') || [{name:'Olivia & Marco Ruiz',group:'Family',party:2,rsvp:'Attending',notes:'Vegetarian meal'},{name:'Sam Miller',group:'Wedding party',party:1,rsvp:'Attending',notes:''},{name:'Jordan Kim',group:'Friends',party:2,rsvp:'Pending',notes:''}];
+let guests = JSON.parse(localStorage.getItem('everAfterGuests') || 'null') || [];
 let editingGuestIndex = null;
-let contacts = JSON.parse(localStorage.getItem('everAfterContacts') || 'null') || [{name:'Maria Ortega',role:'Wedding planner',contact:'(555) 011-2424',initials:'MO',tone:'coral'},{name:'Willow & Stone',role:'Venue coordinator',contact:'(555) 019-8710',initials:'WS',tone:'gold'}];
+let contacts = JSON.parse(localStorage.getItem('everAfterContacts') || 'null') || [];
 let editingContactIndex = null;
-let activity = JSON.parse(localStorage.getItem('everAfterActivity') || 'null') || [
-  { text: 'Wedding workspace created', time: 'Just now' },
-  { text: 'Budget and payment plan set up', time: 'Today' },
-];
+let activity = JSON.parse(localStorage.getItem('everAfterActivity') || 'null') || [];
 function logActivity(text){activity.unshift({text,time:'Just now'});activity=activity.slice(0,25);localStorage.setItem('everAfterActivity',JSON.stringify(activity));renderActivity();}
 function renderActivity(){document.querySelector('#activity-list').innerHTML=activity.map(item=>`<div class="activity-item"><span>✦</span><div><strong>${item.text}</strong><small>${item.time}</small></div></div>`).join('') || '<p class="empty-state">No recent changes.</p>';}
 const money = value => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(value);
@@ -123,7 +120,8 @@ function renderSpendBreakdown(){
 }
 function renderDashboardTaskSummary(){const openTasks=tasks.filter(task=>!task[3]);document.querySelector('#nav-task-count').textContent=openTasks.length;document.querySelector('#dashboard-task-total').textContent=openTasks.length;document.querySelector('#dashboard-task-description').textContent=openTasks.length===1?'Open checklist task':'Open checklist tasks';document.querySelector('#dashboard-task-status').textContent=openTasks.length?`Next: ${openTasks[0][0]}`:'Nothing waiting';}
 function renderDashboardPaymentSummary(){const open=expenses.filter(item=>item.committed-item.paid>0),nextVendor=vendors.filter(vendor=>vendor.balance>0&&vendor.due).sort((a,b)=>a.due.localeCompare(b.due))[0];document.querySelector('#dashboard-payment-count').textContent=`across ${open.length} balance${open.length===1?'':'s'}`;document.querySelector('#dashboard-next-payment').innerHTML=nextVendor?`Next due <b>${formatDueDate(nextVendor.due)}</b>`:'No payments due';}
-function renderWeddingProfile(){const date=new Date(`${weddingProfile.date}T12:00:00`),today=new Date(),todayStart=new Date(today.getFullYear(),today.getMonth(),today.getDate()),days=Math.max(0,Math.ceil((date-todayStart)/86400000)),formatted=date.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}),dayName=date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}),firstName=weddingProfile.names.split('&')[0].trim().split(' ')[0],initials=weddingProfile.names.split(/\s*&\s*/).map(name=>name.trim()[0]||'').join('').slice(0,2).toUpperCase();document.querySelector('#profile-names').textContent=weddingProfile.names;document.querySelector('#profile-initials').textContent=initials;document.querySelector('#topbar-names').textContent=weddingProfile.names.toUpperCase();document.querySelector('#topbar-wedding-details').innerHTML=`${formatted} <em>·</em> ${weddingProfile.location}`;document.querySelector('#sidebar-event-month').textContent=date.toLocaleDateString('en-US',{month:'short'}).toUpperCase();document.querySelector('#sidebar-event-day').textContent=date.getDate();document.querySelector('#sidebar-countdown').textContent=days?`in ${days} day${days===1?'':'s'}`:'Today!';document.querySelector('#dashboard-today').textContent=today.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}).toUpperCase();document.querySelector('#dashboard-greeting').textContent=`Good morning, ${firstName}.`;document.querySelector('#dashboard-countdown').innerHTML=`${days} <small>day${days===1?'':'s'}</small>`;document.querySelector('#dashboard-wedding-date').textContent=dayName;}
+function renderWeddingProfile(){const date=weddingProfile.date?new Date(`${weddingProfile.date}T12:00:00`):null,today=new Date(),todayStart=new Date(today.getFullYear(),today.getMonth(),today.getDate()),hasDate=date&&!Number.isNaN(date.valueOf()),days=hasDate?Math.max(0,Math.ceil((date-todayStart)/86400000)):null,formatted=hasDate?date.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}):'Date to be decided',dayName=hasDate?date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}):'Set your wedding date',firstName=(weddingProfile.names||'there').split('&')[0].trim().split(' ')[0],initials=(weddingProfile.names||'OW').split(/\s*&\s*/).map(name=>name.trim()[0]||'').join('').slice(0,2).toUpperCase();document.querySelector('#profile-names').textContent=weddingProfile.names||'Our wedding';document.querySelector('#profile-initials').textContent=initials;document.querySelector('#topbar-names').textContent=(weddingProfile.names||'Our wedding').toUpperCase();document.querySelector('#topbar-wedding-details').innerHTML=`${formatted} <em>·</em> ${weddingProfile.location||'Location to be decided'}`;document.querySelector('#sidebar-event-month').textContent=hasDate?date.toLocaleDateString('en-US',{month:'short'}).toUpperCase():'—';document.querySelector('#sidebar-event-day').textContent=hasDate?date.getDate():'—';document.querySelector('#sidebar-countdown').textContent=hasDate?(days?`in ${days} day${days===1?'':'s'}`:'Today!'):'Add your date';document.querySelector('#dashboard-today').textContent=today.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}).toUpperCase();document.querySelector('#dashboard-greeting').textContent=`Good morning, ${firstName}.`;document.querySelector('#dashboard-countdown').innerHTML=hasDate?`${days} <small>day${days===1?'':'s'}</small>`:'— <small>days</small>';document.querySelector('#dashboard-wedding-date').textContent=dayName;}
+window.addEventListener('ever-after-auth-changed', event=>{const workspace=event.detail?.workspace;if(!workspace)return;const existingWorkspaceId=localStorage.getItem('everAfterWorkspaceId');if(existingWorkspaceId===workspace.id&&weddingProfile.names&&weddingProfile.names!=='Our wedding')return;localStorage.setItem('everAfterWorkspaceId',workspace.id);weddingProfile={...weddingProfile,names:workspace.name||weddingProfile.names,date:workspace.wedding_date||weddingProfile.date||'',location:workspace.location||weddingProfile.location||''};localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile));renderWeddingProfile();});
 function renderRingBudget(){const ringExpenses=expenses.filter(item=>item.category==='Rings'),committed=ringExpenses.reduce((sum,item)=>sum+item.committed,0),budget=weddingSettings.budget?Math.max(committed,ringExpenses.reduce((sum,item)=>sum+item.committed,0)):committed,values=document.querySelector('#ring-checklist')?.nextElementSibling?.querySelectorAll('b');if(values?.length>=2){values[0].textContent=money(budget);values[1].textContent=money(committed);}}
 function archiveRecord(type,data){archivedRecords.unshift({id:crypto.randomUUID(),type,data,archivedAt:new Date().toISOString()});archivedRecords=archivedRecords.slice(0,100);localStorage.setItem('everAfterArchivedRecords',JSON.stringify(archivedRecords));logActivity(`Archived ${type}`);}
 function renderArchiveManager(){const form=document.querySelector('#settings-form');let manager=document.querySelector('#archive-manager');if(!manager){manager=document.createElement('div');manager.id='archive-manager';form.append(manager);}manager.innerHTML=`<p class="eyebrow settings-divider">ARCHIVE</p><p class="settings-copy">Restore recently archived planning records.</p>${archivedRecords.map(record=>`<div class="archive-item"><span><b>${record.type}</b><small>${new Date(record.archivedAt).toLocaleDateString()}</small></span><button type="button" data-restore-record="${record.id}">Restore</button></div>`).join('') || '<small class="form-note">No archived records.</small>'}`;document.querySelectorAll('[data-restore-record]').forEach(button=>button.onclick=()=>restoreArchivedRecord(button.dataset.restoreRecord));}
@@ -294,6 +292,7 @@ document.querySelector('#open-notifications').onclick=()=>{const recent=activity
 document.querySelector('#settings-form').addEventListener('submit',event=>{event.preventDefault();const form=new FormData(event.target);weddingProfile={names:form.get('names'),date:form.get('date'),location:form.get('location')};localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile));renderWeddingProfile();logActivity('Updated wedding details');document.querySelector('#settings-modal').close();});
 document.querySelector('#export-backup').onclick=()=>{const backup={version:1,createdAt:new Date().toISOString(),data:Object.fromEntries(backupKeys.map(key=>[key,JSON.parse(localStorage.getItem(key)||'null')]))};const url=URL.createObjectURL(new Blob([JSON.stringify(backup,null,2)],{type:'application/json'})),link=document.createElement('a');link.href=url;link.download='andrea-nash-wedding-planner-backup.json';link.click();URL.revokeObjectURL(url);};
 document.querySelector('#import-backup').onchange=event=>{const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const backup=JSON.parse(reader.result);if(!backup.data || !window.confirm('Restore this backup and replace current demo data?'))return;backupKeys.forEach(key=>{if(key in backup.data)localStorage.setItem(key,JSON.stringify(backup.data[key]));});location.reload();}catch{window.alert('That file is not a valid wedding planner backup.');}};reader.readAsText(file);};
+document.querySelector('#clear-local-planner').onclick=()=>{if(!window.confirm('Start with a blank planner? This removes all browser-local planning entries on this device. Download a backup first if you want to keep anything.'))return;backupKeys.forEach(key=>localStorage.removeItem(key));localStorage.removeItem('everAfterWorkspaceId');location.reload();};
 function addTask(){showTaskModal();}
 document.querySelector('#quick-task').onclick=addTask;document.querySelector('#add-task-button').onclick=addTask;
 function setView(view){document.querySelectorAll('.view').forEach(section=>section.classList.toggle('active',section.id===view));document.querySelectorAll('[data-view]').forEach(link=>link.classList.toggle('active',link.dataset.view===view));if(view==='honeymoon'){renderPacking();renderTravelDocuments();}document.querySelector('.sidebar').classList.remove('open');}
