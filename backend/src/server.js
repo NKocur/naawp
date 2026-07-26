@@ -76,6 +76,12 @@ async function resolveAssignee(client, weddingId, assigneeUserId) {
   if (!result.rows[0]) throw httpError('The selected assignee is not a member of this workspace.', 400);
   return { id: result.rows[0].id, name: result.rows[0].display_name };
 }
+async function resolveFinanceMember(client, weddingId, userId, label, fieldName) {
+  if (!userId) return { userId: null, label: label || null };
+  const result = await client.query(`SELECT u.id FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.wedding_id=$1 AND m.user_id=$2`, [weddingId, userId]);
+  if (!result.rows[0]) throw httpError(`The selected ${fieldName} is not a member of this workspace.`, 400);
+  return { userId: result.rows[0].id, label: null };
+}
 async function audit(client, weddingId, actorId, entityType, entityId, action, details = {}) {
   await client.query(`INSERT INTO audit_events (wedding_id, actor_id, entity_type, entity_id, action, details)
     VALUES ($1,$2,$3,$4,$5,$6)`, [weddingId, actorId, entityType, entityId, action, details]);
@@ -305,7 +311,7 @@ app.post('/api/weddings/:weddingId/payments', async (request, reply) => {
   const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
   const body=z.object({expenseId:z.string().uuid().nullable().optional(),vendorId:z.string().uuid().nullable().optional(),payerUserId:z.string().uuid().nullable().optional(),payerLabel:z.string().max(100).nullable().optional(),amount:z.number().positive(),currency:z.string().regex(/^[A-Z]{3}$/).optional(),paidOn:z.string().date().optional(),method:z.string().max(100).nullable().optional(),notes:z.string().max(5000).nullable().optional(),splits:z.array(z.object({owedByUserId:z.string().uuid().nullable().optional(),owedByLabel:z.string().max(100).nullable().optional(),amount:z.number().positive()})).max(20).optional()}).parse(request.body);
   if ((body.splits||[]).reduce((sum,split)=>sum+split.amount,0) > body.amount) throw httpError('Repayment splits cannot exceed the payment amount.');
-  const payment=await withTransaction(async client=>{const result=await client.query(`INSERT INTO payments (wedding_id,expense_id,vendor_id,payer_user_id,payer_label,amount,currency,paid_on,method,notes,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11) RETURNING *`,[weddingId,body.expenseId||null,body.vendorId||null,body.payerUserId||null,body.payerLabel||null,body.amount,body.currency||'USD',body.paidOn||new Date().toISOString().slice(0,10),body.method||null,body.notes||null,user.id]);for(const split of body.splits||[])await client.query('INSERT INTO payment_splits (payment_id,owed_by_user_id,owed_by_label,amount) VALUES ($1,$2,$3,$4)',[result.rows[0].id,split.owedByUserId||null,split.owedByLabel||null,split.amount]);await audit(client,weddingId,user.id,'payment',result.rows[0].id,'created',{amount:body.amount,splitCount:(body.splits||[]).length});return result.rows[0];});
+  const payment=await withTransaction(async client=>{const payer=await resolveFinanceMember(client,weddingId,body.payerUserId,body.payerLabel,'payer');const result=await client.query(`INSERT INTO payments (wedding_id,expense_id,vendor_id,payer_user_id,payer_label,amount,currency,paid_on,method,notes,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11) RETURNING *`,[weddingId,body.expenseId||null,body.vendorId||null,payer.userId,payer.label,body.amount,body.currency||'USD',body.paidOn||new Date().toISOString().slice(0,10),body.method||null,body.notes||null,user.id]);for(const split of body.splits||[]){const owingMember=await resolveFinanceMember(client,weddingId,split.owedByUserId,split.owedByLabel,'person who owes');await client.query('INSERT INTO payment_splits (payment_id,owed_by_user_id,owed_by_label,amount) VALUES ($1,$2,$3,$4)',[result.rows[0].id,owingMember.userId,owingMember.label,split.amount]);}await audit(client,weddingId,user.id,'payment',result.rows[0].id,'created',{amount:body.amount,splitCount:(body.splits||[]).length});return result.rows[0];});
   reply.code(201).send({payment});
 });
 app.delete('/api/weddings/:weddingId/payments/:paymentId', async (request, reply) => {
