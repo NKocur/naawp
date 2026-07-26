@@ -20,7 +20,7 @@ const uploadsDirectory = process.env.UPLOADS_DIRECTORY || '/app/uploads';
 
 await app.register(cookie);
 await app.register(rateLimit, { global: true, max: 200, timeWindow: '1 minute' });
-await app.register(multipart, { limits: { files: 1, fileSize: 20 * 1024 * 1024 } });
+await app.register(multipart, { limits: { files: 1, fileSize: 50 * 1024 * 1024 } });
 
 function httpError(message, statusCode = 400) {
   const error = new Error(message);
@@ -786,6 +786,7 @@ app.delete('/api/weddings/:weddingId/tasks/:taskId', async (request, reply) => {
 
 app.setErrorHandler((error, request, reply) => {
   if (error.name === 'ZodError') return reply.code(400).send({ error: 'Invalid request.', details: error.issues });
+  if (error.code === 'FST_REQ_FILE_TOO_LARGE') return reply.code(413).send({ error: 'That file is too large. Attachments can be up to 50 MB.' });
   request.log.error(error);
   reply.code(error.statusCode || 500).send({ error: error.statusCode ? error.message : 'Request failed.' });
 });
