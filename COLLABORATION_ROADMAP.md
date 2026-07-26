@@ -32,6 +32,7 @@ Completed in the audit fix pass:
 - Reset the task form before setting its type; resetting afterward silently reverted the visible task modal to an expense value.
 - Make the Save Task route use the visible task form and authenticated workspace ID directly rather than a stale hidden select/state flag.
 - Disable hidden expense controls in task mode so browser-native validation cannot block task saving; also corrected two console errors found during verification.
+- Reveal every task-specific field when adding or editing a task, including the due-date control.
 
 Still planned before broader use:
 
