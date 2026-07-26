@@ -261,6 +261,36 @@ app.post('/api/weddings/:weddingId/budget-categories', async (request, reply) =>
   const category=await withTransaction(async client=>{const result=await client.query(`INSERT INTO budget_categories (wedding_id,name,planned_amount,created_by,updated_by) VALUES ($1,$2,$3,$4,$4) RETURNING id,name,planned_amount,created_at,updated_at`,[weddingId,body.name,body.plannedAmount||0,user.id]);await audit(client,weddingId,user.id,'budget_category',result.rows[0].id,'created');return result.rows[0];});
   reply.code(201).send({category});
 });
+app.get('/api/weddings/:weddingId/expenses', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const result=await query(`SELECT e.*,c.name AS budget_category_name,v.name AS vendor_name,
+    COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.expense_id=e.id AND p.archived_at IS NULL),0)::numeric AS payments_total
+    FROM expenses e LEFT JOIN budget_categories c ON c.id=e.budget_category_id LEFT JOIN vendors v ON v.id=e.vendor_id
+    WHERE e.wedding_id=$1 AND e.archived_at IS NULL ORDER BY e.due_date NULLS LAST,e.created_at DESC`,[weddingId]);
+  return { expenses:result.rows };
+});
+app.post('/api/weddings/:weddingId/expenses', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const body=z.object({name:z.string().trim().min(1).max(200),category:z.string().max(80).optional(),description:z.string().max(5000).nullable().optional(),committed:z.number().nonnegative().optional(),currency:z.string().regex(/^[A-Z]{3}$/).optional(),stage:z.enum(['estimated','quoted','committed','partially_paid','paid','refunded','cancelled']).optional(),dueDate:z.string().date().nullable().optional(),budgetCategoryId:z.string().uuid().nullable().optional(),vendorId:z.string().uuid().nullable().optional()}).parse(request.body);
+  const expense=await withTransaction(async client=>{const result=await client.query(`INSERT INTO expenses (wedding_id,name,category,description,committed,currency,stage,due_date,budget_category_id,vendor_id,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11) RETURNING *`,[weddingId,body.name,body.category||'Other',body.description||null,body.committed||0,body.currency||'USD',body.stage||'estimated',body.dueDate||null,body.budgetCategoryId||null,body.vendorId||null,user.id]);await audit(client,weddingId,user.id,'expense',result.rows[0].id,'created');return result.rows[0];});
+  reply.code(201).send({expense});
+});
+app.patch('/api/weddings/:weddingId/expenses/:expenseId', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,expenseId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const body=z.object({name:z.string().trim().min(1).max(200).optional(),category:z.string().max(80).optional(),description:z.string().max(5000).nullable().optional(),committed:z.number().nonnegative().optional(),currency:z.string().regex(/^[A-Z]{3}$/).optional(),stage:z.enum(['estimated','quoted','committed','partially_paid','paid','refunded','cancelled']).optional(),dueDate:z.string().date().nullable().optional(),budgetCategoryId:z.string().uuid().nullable().optional(),vendorId:z.string().uuid().nullable().optional()}).parse(request.body);
+  const fields={name:body.name,category:body.category,description:body.description,committed:body.committed,currency:body.currency,stage:body.stage,due_date:body.dueDate,budget_category_id:body.budgetCategoryId,vendor_id:body.vendorId};const entries=Object.entries(fields).filter(([,value])=>value!==undefined);if(!entries.length)return reply.code(400).send({error:'No changes supplied.'});
+  const expense=await withTransaction(async client=>{const values=[weddingId,expenseId],sets=entries.map(([column,value],index)=>{values.push(value);return `${column}=$${index+3}`;});values.push(user.id);const result=await client.query(`UPDATE expenses SET ${sets.join(',')},updated_by=$${values.length},updated_at=now() WHERE wedding_id=$1 AND id=$2 AND archived_at IS NULL RETURNING *`,values);if(!result.rows[0])throw httpError('Expense not found.',404);await audit(client,weddingId,user.id,'expense',expenseId,'updated',{fields:entries.map(([column])=>column)});return result.rows[0];});
+  return {expense};
+});
+app.delete('/api/weddings/:weddingId/expenses/:expenseId', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,expenseId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  await withTransaction(async client=>{const result=await client.query('UPDATE expenses SET archived_at=now(),updated_by=$3,updated_at=now() WHERE wedding_id=$1 AND id=$2 AND archived_at IS NULL RETURNING id',[weddingId,expenseId,user.id]);if(!result.rows[0])throw httpError('Expense not found.',404);await audit(client,weddingId,user.id,'expense',expenseId,'archived');});
+  reply.code(204).send();
+});
 app.post('/api/weddings/:weddingId/invitations', { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } }, async (request, reply) => {
   const user = await ownerUser(request, reply); if (!user) return;
   const { weddingId } = request.params;
