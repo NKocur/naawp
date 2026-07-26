@@ -149,15 +149,16 @@
   });
   document.querySelector('#invite-form').addEventListener('submit', async event => {
     event.preventDefault();
+    const inviteForm = event.currentTarget;
     const peopleError = document.querySelector('#people-error'); peopleError.textContent = '';
     try {
-      const values = Object.fromEntries(new FormData(event.currentTarget));
+      const values = Object.fromEntries(new FormData(inviteForm));
       values.expiresInDays = Number(values.expiresInDays);
       const result = await api(`/api/weddings/${workspace.id}/invitations`, { method: 'POST', body: JSON.stringify(values) });
       const link = new URL(location.href); link.searchParams.set('invite', result.token);
       await navigator.clipboard?.writeText(link.toString());
       window.prompt('Copy this private invitation link and send it only to the invited person:', link.toString());
-      event.currentTarget.reset(); await renderCollaboration();
+      inviteForm.reset(); await renderCollaboration();
     } catch (requestError) { peopleError.textContent = requestError.message; }
   });
   document.querySelector('#people-modal').addEventListener('change', async event => {
