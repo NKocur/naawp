@@ -1,0 +1,1 @@
+.quote-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}.quote-actions button{font:700 10px var(--sans);border:1px solid #cbd7cc;border-radius:5px;padding:6px 7px;background:white;color:var(--green);cursor:pointer}.quote-actions .danger-action{color:#b46558;border-color:#ead0ca}

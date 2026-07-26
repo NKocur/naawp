@@ -1,0 +1,1 @@
+.vendor-card{position:relative}.vendor-actions{display:flex;gap:8px;margin-top:12px}.vendor-actions button{border:0;background:none;padding:0;color:var(--green);font:700 10px var(--sans);cursor:pointer}.vendor-actions .danger-action{color:#b46558}.vendor-image.catering,.vendor-image.music,.vendor-image.beauty,.vendor-image.other{background:#e8eee3;color:#5a7b5c}

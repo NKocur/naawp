@@ -1,0 +1,1 @@
+.detail-row button.complete,.detail-row button.empty{border:0;cursor:pointer}.ring-actions{margin-left:auto;display:flex;gap:6px}.ring-actions button{border:0;background:none;padding:0;color:var(--green);font:700 10px var(--sans);cursor:pointer}.ring-actions .danger-action{color:#b46558}

@@ -1,0 +1,1 @@
+.contact-actions{margin-left:auto;display:flex;flex-direction:column;gap:2px}.contact-actions button{border:0;background:none;padding:0;color:var(--green);font:700 10px var(--sans);cursor:pointer}.contact-actions .danger-action{color:#b46558}

@@ -1,0 +1,1 @@
+.board-column{transition:background .15s,outline-color .15s}.kanban-dropzone{min-height:230px}.board-column.drag-over{background:#dcebdd;outline:2px dashed #6f9779;outline-offset:-4px}.task-card[draggable="true"]{cursor:grab}.task-card.dragging{opacity:.45;cursor:grabbing}.task-card.done{cursor:grab}
