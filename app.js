@@ -53,6 +53,13 @@ expenses = expenses.map(item => ({ ...item, paidBy: ({ 'Jamie & Lee': 'Andrea & 
 localStorage.setItem('everAfterExpenses', JSON.stringify(expenses));
 let weddingSettings = JSON.parse(localStorage.getItem('everAfterWeddingSettings') || 'null') || { budget: 0 };
 let weddingProfile = JSON.parse(localStorage.getItem('everAfterWeddingProfile') || 'null') || { names: 'Our wedding', date: '', location: '' };
+// PostgreSQL DATE values can arrive as either YYYY-MM-DD or an ISO timestamp.
+// The date input and countdown both require the calendar-day form.
+const normalizeWeddingDate = value => {
+  const match = String(value || '').match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : '';
+};
+weddingProfile.date = normalizeWeddingDate(weddingProfile.date);
 let tasks = JSON.parse(localStorage.getItem('everAfterTasks') || 'null') || [];
 let sharedTasksActive = false;
 let sharedTaskWorkspaceId = null;
@@ -133,7 +140,7 @@ function applySharedWeddingProfile(workspace) {
   // an old browser-local placeholder to replace a real saved wedding date.
   weddingProfile={
     names:workspace.name || 'Our wedding',
-    date:workspace.wedding_date || '',
+    date:normalizeWeddingDate(workspace.wedding_date),
     location:workspace.location || ''
   };
   localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile));
@@ -504,7 +511,7 @@ async function saveWeddingSettings() {
   button.disabled=true;const originalLabel=button.textContent;button.textContent='Saving…';
   try {
     const result=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}`,{method:'PATCH',body:JSON.stringify({name:values.get('names'),weddingDate:values.get('date'),location:values.get('location')})});
-    weddingProfile={names:result.wedding.name,date:result.wedding.wedding_date||'',location:result.wedding.location||''};
+    weddingProfile={names:result.wedding.name,date:normalizeWeddingDate(result.wedding.wedding_date),location:result.wedding.location||''};
     localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile));
     // Update this page right away, then re-read the active workspace so every
     // display uses the server's canonical date, name, and location.
