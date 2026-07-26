@@ -436,7 +436,7 @@ function addLocalStorageNotices() {
 addLocalStorageNotices();
 function retireMigratedLocalViews(){
   if(!sharedTaskWorkspaceId)return;
-  [['#vendors',['.quote-panel']],['#ideas',['#idea-grid','#add-idea']],['#honeymoon',['.honeymoon-hero','.honeymoon-grid','#add-reservation']],['#guests',['.guest-summary','.table-panel','#add-guest']]].forEach(([viewSelector,selectors])=>{const view=document.querySelector(viewSelector);view?.querySelector('.local-module-notice')?.remove();selectors.forEach(selector=>{const element=view?.querySelector(selector);if(element)element.style.display='none';});});
+  [['#vendors',['.quote-panel']],['#honeymoon',['.honeymoon-hero','.honeymoon-grid','#add-reservation']],['#guests',['.guest-summary','.table-panel','#add-guest']]].forEach(([viewSelector,selectors])=>{const view=document.querySelector(viewSelector);view?.querySelector('.local-module-notice')?.remove();selectors.forEach(selector=>{const element=view?.querySelector(selector);if(element)element.style.display='none';});});
 }
 window.addEventListener('ever-after-auth-changed',retireMigratedLocalViews);
 let editingSharedExpenseId=null,editingSharedPaymentId=null;
@@ -535,6 +535,15 @@ async function loadSharedIdeaBoards(){
   });
   panel.querySelectorAll('[data-delete-shared-idea-board]').forEach(button=>button.onclick=async()=>{if(!window.confirm('Delete this shared idea board?'))return;try{await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/idea-boards/${button.dataset.deleteSharedIdeaBoard}`,{method:'DELETE'});await loadSharedIdeaBoards();}catch(error){window.alert(error.message);}});
   result.boards.forEach((board,index)=>{const card=panel.querySelectorAll('.idea-card')[index];if(!card)return;const open=document.createElement('button');open.textContent='Open shared board';open.onclick=()=>openSharedIdeaBoard(board);card.querySelector('.idea-actions').prepend(open);});
+  panel.querySelector('.idea-grid').style.display='none';
+  const legacyGrid=view.querySelector('#idea-grid'),addBoard=view.querySelector('#add-idea-board');
+  legacyGrid.style.display='grid';
+  legacyGrid.innerHTML=result.boards.map(board=>`<article class="idea-card ${escapeTaskHtml(board.theme)}"><div class="idea-image">${ideaIcon(board.theme)}</div><h3>${escapeTaskHtml(board.name)}</h3><p>${escapeTaskHtml(board.note||'No notes added')}</p>${board.source_url?`<a class="idea-source" href="${escapeTaskHtml(board.source_url)}" target="_blank" rel="noreferrer">View source ↗</a>`:''}<div class="idea-actions"><button data-open-live-idea-board="${escapeTaskHtml(board.id)}">Open board</button><button data-edit-live-idea-board="${escapeTaskHtml(board.id)}">Edit</button><button class="danger-action" data-delete-live-idea-board="${escapeTaskHtml(board.id)}">Delete</button></div></article>`).join('')||'<p class="empty-state">Add a board to start collecting inspiration.</p>';
+  addBoard.style.display='inline-flex';
+  addBoard.onclick=()=>form.scrollIntoView({behavior:'smooth',block:'center'});
+  legacyGrid.querySelectorAll('[data-open-live-idea-board]').forEach(button=>button.onclick=()=>{const board=result.boards.find(item=>item.id===button.dataset.openLiveIdeaBoard);if(board)openSharedIdeaBoard(board).catch(error=>window.alert(error.message));});
+  legacyGrid.querySelectorAll('[data-edit-live-idea-board]').forEach(button=>button.onclick=()=>panel.querySelector(`[data-edit-shared-idea-board="${button.dataset.editLiveIdeaBoard}"]`)?.click());
+  legacyGrid.querySelectorAll('[data-delete-live-idea-board]').forEach(button=>button.onclick=()=>panel.querySelector(`[data-delete-shared-idea-board="${button.dataset.deleteLiveIdeaBoard}"]`)?.click());
 }
 window.addEventListener('ever-after-auth-changed',()=>loadSharedIdeaBoards().catch(error=>console.error('Could not load shared idea boards',error)));
 let editingSharedReservationId=null;

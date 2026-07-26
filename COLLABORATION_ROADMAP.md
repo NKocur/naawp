@@ -103,7 +103,7 @@ Cloudflare Access is the outer gate: it controls who can reach the website. The 
 
 **Day-of contacts status:** In progress. Shared contacts now support name, role, phone/email, and create/edit/archive operations. The shared wedding-day schedule remains to be migrated from the browser-local view.
 
-**UI consolidation status:** In progress. Retired local widgets are hidden after sign-in for migrated modules. The original Vendor card grid now renders shared records and its actions route to shared Vendor/Quote forms. Ideas, Honeymoon, Guests, and Contacts still use their temporary shared panels while their original page layouts are rewired.
+**UI consolidation status:** In progress. Retired local widgets are hidden after sign-in for migrated modules. The original Vendor and Idea Board card grids now render shared records and their actions route to the shared workflows. Honeymoon, Guests, and Contacts still use their temporary shared panels while their original page layouts are rewired.
 
 #### Data model
 
