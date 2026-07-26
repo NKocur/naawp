@@ -267,6 +267,19 @@ app.post('/api/weddings/:weddingId/budget-categories', async (request, reply) =>
   const category=await withTransaction(async client=>{const result=await client.query(`INSERT INTO budget_categories (wedding_id,name,planned_amount,created_by,updated_by) VALUES ($1,$2,$3,$4,$4) RETURNING id,name,planned_amount,created_at,updated_at`,[weddingId,body.name,body.plannedAmount||0,user.id]);await audit(client,weddingId,user.id,'budget_category',result.rows[0].id,'created');return result.rows[0];});
   reply.code(201).send({category});
 });
+app.patch('/api/weddings/:weddingId/budget-categories/:categoryId', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,categoryId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const body=z.object({name:z.string().trim().min(1).max(100).optional(),plannedAmount:z.number().nonnegative().optional()}).parse(request.body);
+  const fields={name:body.name,planned_amount:body.plannedAmount};const entries=Object.entries(fields).filter(([,value])=>value!==undefined);if(!entries.length)throw httpError('No changes supplied.');
+  const values=[weddingId,categoryId],sets=entries.map(([column,value],index)=>{values.push(value);return `${column}=$${index+3}`;});values.push(user.id);
+  const result=await query(`UPDATE budget_categories SET ${sets.join(',')},updated_by=$${values.length},updated_at=now() WHERE wedding_id=$1 AND id=$2 AND archived_at IS NULL RETURNING id,name,planned_amount,created_at,updated_at`,values);if(!result.rows[0])throw httpError('Budget category not found.',404);await query(`INSERT INTO audit_events (wedding_id,actor_id,entity_type,entity_id,action,details) VALUES ($1,$2,'budget_category',$3,'updated',$4)`,[weddingId,user.id,categoryId,JSON.stringify({fields:entries.map(([column])=>column)})]);return {category:result.rows[0]};
+});
+app.delete('/api/weddings/:weddingId/budget-categories/:categoryId', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,categoryId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const result=await query(`UPDATE budget_categories SET archived_at=now(),updated_by=$3,updated_at=now() WHERE wedding_id=$1 AND id=$2 AND archived_at IS NULL RETURNING id`,[weddingId,categoryId,user.id]);if(!result.rows[0])throw httpError('Budget category not found.',404);await query(`INSERT INTO audit_events (wedding_id,actor_id,entity_type,entity_id,action) VALUES ($1,$2,'budget_category',$3,'archived')`,[weddingId,user.id,categoryId]);reply.code(204).send();
+});
 app.get('/api/weddings/:weddingId/expenses', async (request, reply) => {
   const user=await requireUser(request,reply); if(!user)return;
   const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
