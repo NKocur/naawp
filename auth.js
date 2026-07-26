@@ -11,7 +11,7 @@
   const topActions = document.querySelector('.top-actions');
   if (!topActions) return;
   const appShell = document.querySelector('.app-shell');
-  document.body.insertAdjacentHTML('afterbegin', `<section class="auth-gate" id="auth-gate"><div class="auth-gate-card"><p class="eyebrow">ANDREA & NASH</p><h1>Welcome to our wedding workspace.</h1><p>Sign in to plan together, track the details, and keep every decision in one private place.</p><div class="auth-gate-actions"><button class="add-button" id="gate-sign-in">Sign in</button><button class="secondary-button hidden" id="gate-create-account">Create owner account</button></div><small id="gate-help">Your access is protected by Cloudflare and your personal planner account.</small></div></section>`);
+  document.body.insertAdjacentHTML('afterbegin', `<section class="auth-gate" id="auth-gate"><div class="auth-gate-card"><p class="eyebrow">ANDREA & NASH</p><h1>Welcome to our wedding workspace.</h1><p>Sign in to plan together, track the details, and keep every decision in one private place.</p><div class="auth-gate-actions"><button class="add-button" id="gate-sign-in">Sign in</button><button class="secondary-button" id="gate-join-invitation">Join with invitation</button><button class="secondary-button hidden" id="gate-create-account">Create owner account</button></div><small id="gate-help">New accounts join through a private invitation from an Owner.</small></div></section>`);
   topActions.insertAdjacentHTML('afterbegin', `<button class="account-button hidden" id="manage-people" type="button">People & access</button><button class="account-button" id="open-account" type="button">Sign in</button><button class="account-button hidden" id="sign-out" type="button">Sign out</button>`);
   document.body.insertAdjacentHTML('beforeend', `<dialog class="auth-dialog" id="account-modal"><button class="close-modal" type="button" aria-label="Close">×</button><p class="eyebrow">SHARED WORKSPACE</p><h2 id="account-title">Sign in</h2><p class="auth-help hidden" id="invite-help"></p><form id="account-form"><label>Email<input name="email" type="email" autocomplete="email" required /></label><label>Password<input name="password" type="password" autocomplete="current-password" minlength="12" required /></label><div class="register-only hidden"><label>Your name<input name="displayName" autocomplete="name" /></label><label class="workspace-name">Wedding workspace name<input name="weddingName" placeholder="e.g. Andrea & Nash" /></label></div><p class="auth-error" id="account-error"></p><button class="add-button" type="submit" id="account-submit">Sign in</button><button class="auth-switch" type="button" id="account-switch">Create an account</button></form></dialog>
   <dialog class="auth-dialog people-dialog" id="people-modal"><button class="close-modal" type="button" aria-label="Close">×</button><p class="eyebrow">COLLABORATION</p><h2>People & access</h2><p class="auth-help">Cloudflare controls who reaches the site. Add the same email to Cloudflare Access before sharing an invitation.</p><form id="invite-form" class="invite-form"><label>Email<input name="email" type="email" required placeholder="family@example.com" /></label><label>Role<select name="role"><option value="contributor">Contributor</option><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="owner">Owner</option></select></label><label>Expires in<select name="expiresInDays"><option value="14">14 days</option><option value="7">7 days</option><option value="30">30 days</option></select></label><button class="add-button" type="submit">Create invitation</button></form><p class="auth-error" id="people-error"></p><div class="people-section"><p class="eyebrow">MEMBERS</p><div id="member-list"></div></div><div class="people-section"><p class="eyebrow">PENDING INVITATIONS</p><div id="invitation-list"></div></div></dialog>`);
@@ -46,7 +46,7 @@
     const joining = registering && Boolean(inviteToken);
     title.textContent = joining ? 'Join wedding workspace' : registering ? 'Create your workspace' : 'Sign in';
     submit.textContent = joining ? 'Join workspace' : registering ? 'Create account' : 'Sign in';
-    switcher.textContent = registering ? 'I already have an account' : 'Create an account';
+    switcher.textContent = registering ? 'I already have an account' : workspaceRegistrationOpen ? 'Create an account' : 'Join with invitation';
     registerFields.classList.toggle('hidden', !registering);
     workspaceName.classList.toggle('hidden', joining);
     form.elements.displayName.required = registering;
@@ -54,10 +54,19 @@
     form.elements.password.autocomplete = registering ? 'new-password' : 'current-password';
     inviteHelp.classList.toggle('hidden', !joining);
     if (joining) inviteHelp.textContent = 'Use the same email address the owner invited. After joining, this link will stop working.';
-    switcher.classList.toggle('hidden', !joining && !workspaceRegistrationOpen);
+    switcher.classList.remove('hidden');
     error.textContent = '';
   };
   const clearInviteFromUrl = () => { inviteToken = null; const url = new URL(location.href); url.searchParams.delete('invite'); history.replaceState({}, '', url); };
+  const beginInvitationJoin = () => {
+    const value = window.prompt('Paste the private invitation link (or invitation token) your Owner sent you:');
+    if (!value) return;
+    try { inviteToken = new URL(value).searchParams.get('invite') || value.trim(); }
+    catch { inviteToken = value.trim(); }
+    if (!inviteToken) { window.alert('That invitation link did not include a token. Ask the Owner to send it again.'); return; }
+    setMode('register');
+    modal.showModal();
+  };
   const renderCollaboration = async () => {
     if (!workspace || workspace.role !== 'owner') return;
     const data = await api(`/api/weddings/${workspace.id}/collaboration`);
@@ -135,10 +144,15 @@
   document.querySelector('#people-modal .close-modal').onclick = () => peopleModal.close();
   peopleButton.onclick = openPeople;
   document.querySelector('#gate-sign-in').onclick = () => { setMode(inviteToken ? 'register' : 'login'); modal.showModal(); };
+  document.querySelector('#gate-join-invitation').onclick = beginInvitationJoin;
   document.querySelector('#gate-create-account').onclick = () => { setMode('register'); modal.showModal(); };
   document.querySelector('#invite-button').onclick = openPeople;
   document.querySelector('#invite-wide').onclick = openPeople;
-  switcher.onclick = () => setMode(registering ? 'login' : 'register');
+  switcher.onclick = () => {
+    if (registering) return setMode('login');
+    if (workspaceRegistrationOpen) return setMode('register');
+    beginInvitationJoin();
+  };
   form.addEventListener('submit', async event => {
     event.preventDefault(); error.textContent = ''; submit.disabled = true;
     try {
