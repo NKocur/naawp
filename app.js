@@ -434,6 +434,14 @@ function addLocalStorageNotices() {
   targets.forEach(([selector,label]) => { const view=document.querySelector(selector); if(view && !view.querySelector('.local-module-notice')) view.insertAdjacentHTML('afterbegin', `<p class="local-module-notice"><b>${label}:</b> this section is currently stored only in this browser. It is not shared with other accounts yet.</p>`); });
 }
 addLocalStorageNotices();
+async function loadSharedFinanceSummary() {
+  if(!sharedTaskWorkspaceId||!window.everAfterApi||!['owner','editor'].includes(window.everAfterWorkspaceRole)) return;
+  const result=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/finance/summary`),summary=result.summary,budget=document.querySelector('#budget');
+  let panel=document.querySelector('#shared-finance-summary');
+  if(!panel){panel=document.createElement('section');panel.id='shared-finance-summary';panel.className='panel';budget.querySelector('.page-heading').insertAdjacentElement('afterend',panel);}
+  panel.innerHTML=`<p class="eyebrow">SHARED FINANCE PREVIEW</p><h2>${money(summary.committed)} committed <small>· ${money(summary.paid)} paid · ${money(summary.stillOwed)} still owed</small></h2><p>These totals come from the shared server records. Budget editing will move here as the finance UI migration continues.</p>`;
+}
+window.addEventListener('ever-after-auth-changed',()=>loadSharedFinanceSummary().catch(error=>console.error('Could not load shared finance summary',error)));
 function formatAttachmentSize(bytes) { return bytes < 1024 * 1024 ? `${Math.max(1,Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`; }
 function decorateTaskAttachments() {
   document.querySelectorAll('[data-kanban-task]').forEach(card => {
