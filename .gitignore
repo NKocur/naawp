@@ -13,3 +13,4 @@
 # Generated dependencies and persistent runtime data
 backend/node_modules/
 postgres_data/
+backups/

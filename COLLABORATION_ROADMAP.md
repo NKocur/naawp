@@ -34,6 +34,7 @@ Completed in the audit fix pass:
 - Disable hidden expense controls in task mode so browser-native validation cannot block task saving; also corrected two console errors found during verification.
 - Reveal every task-specific field when adding or editing a task, including the due-date control.
 - Preserve and migrate legacy wedding date/location values into the shared workspace instead of replacing them with blank database fields at sign-in.
+- Give shared wedding settings their own direct Save control so legacy dialog handlers cannot overwrite a saved date or location.
 
 Still planned before broader use:
 

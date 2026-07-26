@@ -22,7 +22,16 @@ The front-end still uses local storage. Do not treat the app as multi-user until
    docker compose up -d --build
    ```
 
-4. Verify the API from the Pi:
+4. Make the helper scripts executable once, then use the safe update command for future deployments:
+
+   ```sh
+   chmod +x scripts/backup.sh scripts/update.sh
+   ./scripts/update.sh
+   ```
+
+   It backs up PostgreSQL and uploaded files before rebuilding. See `BACKUP_AND_UPDATE.md` for recovery notes. Never use `docker compose down -v` for a normal update.
+
+5. Verify the API from the Pi:
 
    ```sh
    curl http://127.0.0.1:8080/api/health
