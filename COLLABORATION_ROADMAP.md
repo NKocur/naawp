@@ -101,6 +101,8 @@ Cloudflare Access is the outer gate: it controls who can reach the website. The 
 
 **Guests status:** In progress. Shared guest/household records now support group, party size, RSVP state, notes, server-computed RSVP totals, and create/edit/archive operations. Legacy browser-local guest widgets remain visibly separate until an optional import tool is added.
 
+**Day-of contacts status:** In progress. Shared contacts now support name, role, phone/email, and create/edit/archive operations. The shared wedding-day schedule remains to be migrated from the browser-local view.
+
 #### Data model
 
 1. Add budget categories and planned allocations.
