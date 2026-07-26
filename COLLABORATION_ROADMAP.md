@@ -99,6 +99,8 @@ Cloudflare Access is the outer gate: it controls who can reach the website. The 
 
 **Honeymoon status:** Shared trip profile, reservations, itinerary, packing, and travel documents now support shared create/edit/archive operations. Travel documents can carry an optional protected PDF/photo attachment and a ready/to-do state. The legacy browser-local Honeymoon widgets remain visibly separate until an optional import tool is added.
 
+**Guests status:** In progress. Shared guest/household records now support group, party size, RSVP state, notes, server-computed RSVP totals, and create/edit/archive operations. Legacy browser-local guest widgets remain visibly separate until an optional import tool is added.
+
 #### Data model
 
 1. Add budget categories and planned allocations.
