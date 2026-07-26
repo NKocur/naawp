@@ -311,6 +311,32 @@ app.post('/api/weddings/:weddingId/tasks', async (request, reply) => {
   });
   reply.code(201).send({ task });
 });
+app.post('/api/weddings/:weddingId/tasks/import', async (request, reply) => {
+  const user = await ownerUser(request, reply); if (!user) return;
+  const { weddingId } = request.params;
+  const body = z.object({ tasks:z.array(z.object({
+    title:z.string().trim().min(1).max(250), category:z.string().max(80).optional(), priority:z.enum(['Low','Medium','High']).optional(),
+    assigneeUserId:z.string().uuid().nullable().optional(), notes:z.string().max(5000).nullable().optional(), linkedVendor:z.string().max(160).nullable().optional(),
+    dueDate:z.string().date().nullable().optional(), status:z.enum(['todo','progress','done']).optional()
+  })).min(1).max(500) }).parse(request.body);
+  const imported = await withTransaction(async client => {
+    const positions = new Map();
+    for (const status of ['todo','progress','done']) {
+      const result = await client.query('SELECT COALESCE(MAX(position), -1) + 1 AS position FROM tasks WHERE wedding_id=$1 AND status=$2 AND archived_at IS NULL',[weddingId,status]);
+      positions.set(status, Number(result.rows[0].position));
+    }
+    const records=[];
+    for (const item of body.tasks) {
+      const status=item.status||'todo', assignee=await resolveAssignee(client,weddingId,item.assigneeUserId);
+      const result=await client.query(`INSERT INTO tasks (wedding_id,title,category,priority,assignee,assignee_user_id,notes,linked_vendor,due_date,status,position,created_by,updated_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING id`,[weddingId,item.title,item.category||'Other',item.priority||'Medium',assignee.name,assignee.id,item.notes||null,item.linkedVendor||null,item.dueDate||null,status,positions.get(status),user.id]);
+      positions.set(status,positions.get(status)+1); records.push(result.rows[0]);
+    }
+    await audit(client,weddingId,user.id,'task',null,'imported',{count:records.length});
+    return records;
+  });
+  reply.code(201).send({ imported:imported.length });
+});
 app.put('/api/weddings/:weddingId/tasks/order', async (request, reply) => {
   const user = await requireUser(request, reply); if (!user) return;
   const { weddingId } = request.params;

@@ -432,3 +432,30 @@ function addLocalStorageNotices() {
   targets.forEach(([selector,label]) => { const view=document.querySelector(selector); if(view && !view.querySelector('.local-module-notice')) view.insertAdjacentHTML('afterbegin', `<p class="local-module-notice"><b>${label}:</b> this section is currently stored only in this browser. It is not shared with other accounts yet.</p>`); });
 }
 addLocalStorageNotices();
+function configureSharedTaskImport() {
+  const settings=document.querySelector('#settings-modal form');
+  if (!settings.querySelector('#shared-task-import')) {
+    settings.insertAdjacentHTML('beforeend', `<div class="shared-task-import" id="shared-task-import"><p class="eyebrow settings-divider">SHARED CHECKLIST</p><p class="settings-copy">Import tasks from a browser backup into the shared checklist. Existing shared tasks are kept. Task comments and attachments are not included in this first import.</p><label class="backup-import">Import task backup<input id="shared-task-import-file" type="file" accept="application/json,.json" /></label></div>`);
+    document.querySelector('#shared-task-import-file').addEventListener('change', importSharedTaskBackup);
+  }
+  const section=settings.querySelector('#shared-task-import');
+  section.classList.toggle('hidden', !sharedTaskWorkspaceId || window.everAfterWorkspaceRole !== 'owner');
+}
+async function importSharedTaskBackup(event) {
+  const file=event.target.files[0]; if(!file || !sharedTaskWorkspaceId) return;
+  try {
+    const parsed=JSON.parse(await file.text()), source=Array.isArray(parsed)?parsed:(parsed.data?.everAfterTasks||parsed.everAfterTasks||[]);
+    if(!Array.isArray(source) || !source.length) throw new Error('This file does not contain any browser-local checklist tasks.');
+    const imported=source.map(task => {
+      const status=task[4]||((task[3])?'done':'todo'), assignee=taskAssignees.find(member=>member.name===task[7]);
+      return {title:String(task[0]||'').trim(),category:task[1]||'Other',priority:['Low','Medium','High'].includes(task[6])?task[6]:'Medium',assigneeUserId:assignee?.id||null,notes:task[8]||null,linkedVendor:task[9]||null,dueDate:task[10]||null,status:['todo','progress','done'].includes(status)?status:'todo'};
+    }).filter(task=>task.title);
+    if(!imported.length) throw new Error('No valid task titles were found in that backup.');
+    if(!window.confirm(`Import ${imported.length} task${imported.length===1?'':'s'} into the shared checklist? Existing shared tasks will be kept. Comments and attachments from the old browser backup are not imported.`)) return;
+    const result=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/import`,{method:'POST',body:JSON.stringify({tasks:imported})});
+    await loadSharedTasks(); window.alert(`Imported ${result.imported} shared task${result.imported===1?'':'s'}.`);
+  } catch(error) { window.alert(error.message||'Could not import that task backup.'); }
+  finally { event.target.value=''; }
+}
+window.addEventListener('ever-after-auth-changed', configureSharedTaskImport);
+configureSharedTaskImport();
