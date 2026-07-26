@@ -239,6 +239,16 @@ Cloudflare Access is the outer gate: it controls who can reach the website. The 
 
 ## Immediate next sprint
 
+## Regression audit â€” 2026-07-26
+
+The shared production UI was checked for two browser/API boundary failures that had blocked saved data from appearing or being edited.
+
+1. PostgreSQL `DATE` values now stay in `YYYY-MM-DD` form at the API boundary. This protects wedding dates, task due dates, expense/payment dates, quote expirations, reservation due dates, itinerary dates, and attire appointment dates.
+2. Shared task saving no longer relies on a dialog form's implicit submit behavior. Task save buttons use the explicit API path, and both clicking Save and pressing Enter read the form controls directly rather than depending on an omitted `FormData` field.
+3. Follow-up smoke test after deployment: edit a task's title/category/due date; edit a shared expense due date; edit a payment date; edit a quote expiry; edit a reservation due date; edit an itinerary item; edit an attire appointment; and confirm each survives a refresh and is visible to a second signed-in owner.
+
+## Immediate next sprint
+
 1. Deploy and test owner invitations with Andrea and Nash as Owners.
 2. Test shared tasks and comments from two accounts, including Kanban reordering and permission boundaries.
 3. Add task attachments and a shared activity view.
