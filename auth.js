@@ -7,6 +7,8 @@
   };
   const topActions = document.querySelector('.top-actions');
   if (!topActions) return;
+  const appShell = document.querySelector('.app-shell');
+  document.body.insertAdjacentHTML('afterbegin', `<section class="auth-gate" id="auth-gate"><div class="auth-gate-card"><p class="eyebrow">ANDREA & NASH</p><h1>Welcome to our wedding workspace.</h1><p>Sign in to plan together, track the details, and keep every decision in one private place.</p><div class="auth-gate-actions"><button class="add-button" id="gate-sign-in">Sign in</button><button class="secondary-button hidden" id="gate-create-account">Create owner account</button></div><small id="gate-help">Your access is protected by Cloudflare and your personal planner account.</small></div></section>`);
   topActions.insertAdjacentHTML('afterbegin', `<button class="account-button hidden" id="manage-people">People & access</button><button class="account-button" id="open-account">Sign in</button>`);
   document.body.insertAdjacentHTML('beforeend', `<dialog class="auth-dialog" id="account-modal"><button class="close-modal" type="button" aria-label="Close">×</button><p class="eyebrow">SHARED WORKSPACE</p><h2 id="account-title">Sign in</h2><p class="auth-help hidden" id="invite-help"></p><form id="account-form"><label>Email<input name="email" type="email" autocomplete="email" required /></label><label>Password<input name="password" type="password" autocomplete="current-password" minlength="12" required /></label><div class="register-only hidden"><label>Your name<input name="displayName" autocomplete="name" /></label><label class="workspace-name">Wedding workspace name<input name="weddingName" placeholder="e.g. Andrea & Nash" /></label></div><p class="auth-error" id="account-error"></p><button class="add-button" type="submit" id="account-submit">Sign in</button><button class="auth-switch" type="button" id="account-switch">Create an account</button></form></dialog>
   <dialog class="auth-dialog people-dialog" id="people-modal"><button class="close-modal" type="button" aria-label="Close">×</button><p class="eyebrow">COLLABORATION</p><h2>People & access</h2><p class="auth-help">Cloudflare controls who reaches the site. Add the same email to Cloudflare Access before sharing an invitation.</p><form id="invite-form" class="invite-form"><label>Email<input name="email" type="email" required placeholder="family@example.com" /></label><label>Role<select name="role"><option value="contributor">Contributor</option><option value="viewer">Viewer</option><option value="editor">Editor</option></select></label><label>Expires in<select name="expiresInDays"><option value="14">14 days</option><option value="7">7 days</option><option value="30">30 days</option></select></label><button class="add-button" type="submit">Create invitation</button></form><p class="auth-error" id="people-error"></p><div class="people-section"><p class="eyebrow">MEMBERS</p><div id="member-list"></div></div><div class="people-section"><p class="eyebrow">PENDING INVITATIONS</p><div id="invitation-list"></div></div></dialog>`);
@@ -26,7 +28,14 @@
   let registering = false;
   let user = null;
   let workspace = null;
+  let workspaceRegistrationOpen = false;
   let inviteToken = new URLSearchParams(location.search).get('invite');
+
+  const setGate = open => {
+    document.body.classList.toggle('app-authenticated', !open);
+    appShell.inert = open;
+    document.querySelector('#auth-gate').classList.toggle('hidden', !open);
+  };
 
   const setMode = mode => {
     registering = mode === 'register';
@@ -41,6 +50,7 @@
     form.elements.password.autocomplete = registering ? 'new-password' : 'current-password';
     inviteHelp.classList.toggle('hidden', !joining);
     if (joining) inviteHelp.textContent = 'Use the same email address the owner invited. After joining, this link will stop working.';
+    switcher.classList.toggle('hidden', !joining && !workspaceRegistrationOpen);
     error.textContent = '';
   };
   const clearInviteFromUrl = () => { inviteToken = null; const url = new URL(location.href); url.searchParams.delete('invite'); history.replaceState({}, '', url); };
@@ -68,6 +78,7 @@
           catch (requestError) { modal.showModal(); setMode('login'); error.textContent = requestError.message; }
         }
         window.everAfterWorkspaceId = workspace?.id || null;
+        setGate(false);
         window.dispatchEvent(new CustomEvent('ever-after-auth-changed', { detail: { user, workspace } }));
         button.textContent = user.display_name;
         button.title = 'Click to sign out';
@@ -76,9 +87,11 @@
         return;
       }
     } catch { /* The local demo remains usable when the API is unavailable. */ }
-    user = null; workspace = null; window.everAfterWorkspaceId = null;
+    try { workspaceRegistrationOpen = (await api('/api/auth/setup')).workspaceCreationOpen; } catch { workspaceRegistrationOpen = false; }
+    user = null; workspace = null; window.everAfterWorkspaceId = null; setGate(true);
     peopleButton.classList.add('hidden'); button.textContent = 'Sign in'; button.title = 'Sign in to the production workspace';
     button.onclick = () => { setMode(inviteToken ? 'register' : 'login'); modal.showModal(); };
+    document.querySelector('#gate-create-account').classList.toggle('hidden', !workspaceRegistrationOpen);
     if (inviteToken) { setMode('register'); modal.showModal(); }
   };
   const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[character]));
@@ -86,6 +99,8 @@
   document.querySelector('#account-modal .close-modal').onclick = () => modal.close();
   document.querySelector('#people-modal .close-modal').onclick = () => peopleModal.close();
   peopleButton.onclick = openPeople;
+  document.querySelector('#gate-sign-in').onclick = () => { setMode(inviteToken ? 'register' : 'login'); modal.showModal(); };
+  document.querySelector('#gate-create-account').onclick = () => { setMode('register'); modal.showModal(); };
   document.querySelector('#invite-button').onclick = openPeople;
   document.querySelector('#invite-wide').onclick = openPeople;
   switcher.onclick = () => setMode(registering ? 'login' : 'register');

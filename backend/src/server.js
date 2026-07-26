@@ -91,6 +91,10 @@ async function ownerUser(request, reply) {
 }
 
 app.get('/api/health', async () => ({ ok: true }));
+app.get('/api/auth/setup', async () => {
+  const result = await query('SELECT EXISTS(SELECT 1 FROM weddings) AS workspace_exists');
+  return { workspaceCreationOpen: !result.rows[0].workspace_exists };
+});
 
 app.post('/api/auth/register', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } } }, async (request, reply) => {
   const body = z.object({
@@ -100,6 +104,10 @@ app.post('/api/auth/register', { config: { rateLimit: { max: 10, timeWindow: '1 
   }).parse(request.body);
   const email = normalizeEmail(body.email);
   const result = await withTransaction(async client => {
+    if (!body.invitationToken) {
+      const existingWorkspace = await client.query('SELECT EXISTS(SELECT 1 FROM weddings) AS workspace_exists');
+      if (existingWorkspace.rows[0].workspace_exists) throw httpError('Workspace registration is closed. Ask an owner for an invitation.', 403);
+    }
     const passwordHash = await hashPassword(body.password);
     let user;
     try {
