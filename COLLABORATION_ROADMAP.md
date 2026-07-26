@@ -15,7 +15,7 @@ Turn the deployed wedding planner into a shared workspace for Andrea, Nash, and 
 
 ## Important current limitation
 
-Tasks, finances, vendors/quotes, idea boards, honeymoon planning, guests, day-of contacts, rings, and attire now have shared server-backed workflows. Retired browser-local widgets for fully migrated modules are hidden after sign-in so they cannot be mistaken for live data. The remaining day-of schedule is still local-only.
+Tasks, finances, vendors/quotes, idea boards, honeymoon planning, guests, day-of contacts, rings, and attire now have shared server-backed workflows. Retired browser-local widgets for fully migrated modules are hidden after sign-in so they cannot be mistaken for live data. Browser-local records created before each migration are not imported automatically; the planned owner import remains the safe path for bringing them over.
 
 ## Collaboration model
 
