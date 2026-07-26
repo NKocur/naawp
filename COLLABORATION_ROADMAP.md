@@ -97,7 +97,7 @@ Cloudflare Access is the outer gate: it controls who can reach the website. The 
 
 **Idea boards status:** Shared board records, attachments, and attachment comments now support workspace-aware create/edit/open/archive operations. Attachment files are stored in the Pi's persistent Docker upload volume with membership-checked access. Comments are attributed to the signed-in account; an author or Owner can edit/delete them. Legacy browser-local boards remain visibly separate until an optional import tool is added.
 
-**Honeymoon status:** In progress. A shared trip profile, shared reservations, and a shared itinerary now support destination, dates, description, budget, confirmation, costs, paid amount, due date, and create/edit/archive actions. Shared packing and travel documents remain to be migrated from their browser-local counterparts.
+**Honeymoon status:** In progress. A shared trip profile, shared reservations, itinerary, and packing list now support destination, dates, description, budget, confirmation, costs, paid amount, due date, create/edit/archive actions, and packed-state tracking. Shared travel documents remain to be migrated from their browser-local counterpart.
 
 #### Data model
 
