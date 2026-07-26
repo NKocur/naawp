@@ -1,7 +1,7 @@
 (() => {
   const api = async (path, options = {}) => {
     const headers = { ...(options.headers || {}) };
-    if (options.body !== undefined && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    if (options.body !== undefined && !(options.body instanceof FormData) && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
     const response = await fetch(path, { credentials: 'same-origin', ...options, headers });
     const body = response.status === 204 ? null : await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || 'The server could not complete that request.');

@@ -318,7 +318,7 @@ renderWeddingProfile();renderExpenses();renderTasks();renderVendors();renderQuot
 // Shared checklist: task data lives in PostgreSQL once the user has signed in.
 function dueLabel(date) { return date ? `Due ${new Date(`${date}T12:00:00`).toLocaleDateString('en-US',{month:'short',day:'numeric'})}` : 'No due date'; }
 function fromSharedTask(task) {
-  return [task.title, (task.category || 'Other').toUpperCase(), dueLabel(task.due_date), task.status === 'done', task.status, (task.comments || []).map(comment => ({ id:comment.id, author:comment.author_name, authorId:comment.created_by, text:comment.body })), task.priority || 'Medium', task.assignee_name || task.assignee || 'Unassigned', task.notes || '', task.linked_vendor || '', task.due_date || '', task.id, task.position || 0, task.assignee_user_id || null];
+  return [task.title, (task.category || 'Other').toUpperCase(), dueLabel(task.due_date), task.status === 'done', task.status, (task.comments || []).map(comment => ({ id:comment.id, author:comment.author_name, authorId:comment.created_by, text:comment.body })), task.priority || 'Medium', task.assignee_name || task.assignee || 'Unassigned', task.notes || '', task.linked_vendor || '', task.due_date || '', task.id, task.position || 0, task.assignee_user_id || null, task.attachments || []];
 }
 async function loadSharedTasks() {
   if (!sharedTaskWorkspaceId || !window.everAfterApi) return;
@@ -432,6 +432,20 @@ function addLocalStorageNotices() {
   targets.forEach(([selector,label]) => { const view=document.querySelector(selector); if(view && !view.querySelector('.local-module-notice')) view.insertAdjacentHTML('afterbegin', `<p class="local-module-notice"><b>${label}:</b> this section is currently stored only in this browser. It is not shared with other accounts yet.</p>`); });
 }
 addLocalStorageNotices();
+function formatAttachmentSize(bytes) { return bytes < 1024 * 1024 ? `${Math.max(1,Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`; }
+function decorateTaskAttachments() {
+  document.querySelectorAll('[data-kanban-task]').forEach(card => {
+    if(card.querySelector('.task-attachments')) return;
+    const index=Number(card.dataset.kanbanTask),task=tasks[index],attachments=task?.[15]||[],sharedTask=sharedTasksActive&&task?.[11];
+    const links=attachments.map(file => `<span class="task-file"><a href="/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments/${file.id}/download" target="_blank" rel="noreferrer">${escapeTaskHtml(file.original_name)}</a><small>${formatAttachmentSize(file.byte_size)}</small>${taskCanWrite()?`<button data-archive-task-file="${index}:${file.id}">×</button>`:''}</span>`).join('');
+    card.insertAdjacentHTML('beforeend',`<div class="task-attachments">${links}${sharedTask&&taskCanWrite()?`<button data-upload-task-file="${index}">Attach file</button>`:''}</div>`);
+  });
+  document.querySelectorAll('[data-upload-task-file]').forEach(button=>button.onclick=()=>uploadTaskAttachment(Number(button.dataset.uploadTaskFile)));
+  document.querySelectorAll('[data-archive-task-file]').forEach(button=>button.onclick=()=>archiveTaskAttachment(...button.dataset.archiveTaskFile.split(':')));
+}
+async function uploadTaskAttachment(index) { const task=tasks[index]; if(!task?.[11]) return; const input=document.createElement('input'); input.type='file'; input.accept='image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt'; input.onchange=async()=>{const file=input.files[0];if(!file)return;try{const form=new FormData();form.append('file',file);await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments`,{method:'POST',body:form});await loadSharedTasks();}catch(error){window.alert(error.message);}};input.click(); }
+async function archiveTaskAttachment(index,attachmentId) { const task=tasks[Number(index)]; if(!task||!window.confirm('Archive this attachment?'))return; try{await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments/${attachmentId}`,{method:'DELETE'});await loadSharedTasks();}catch(error){window.alert(error.message);} }
+new MutationObserver(decorateTaskAttachments).observe(document.querySelector('.task-board'),{childList:true,subtree:true});
 function configureSharedTaskImport() {
   const settings=document.querySelector('#settings-modal form');
   if (!settings.querySelector('#shared-task-import')) {

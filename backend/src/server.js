@@ -300,7 +300,10 @@ app.get('/api/weddings/:weddingId/tasks', async (request, reply) => {
     JOIN users u ON u.id=c.created_by WHERE c.wedding_id=$1 AND c.archived_at IS NULL ORDER BY c.created_at`, [weddingId]);
   const commentsByTask = new Map();
   for (const comment of comments.rows) commentsByTask.set(comment.task_id, [...(commentsByTask.get(comment.task_id) || []), comment]);
-  return { tasks: result.rows.map(task => ({ ...task, comments: commentsByTask.get(task.id) || [] })) };
+  const attachments = await query('SELECT id,task_id,original_name,content_type,byte_size,created_at FROM task_attachments WHERE wedding_id=$1 AND archived_at IS NULL ORDER BY created_at',[weddingId]);
+  const attachmentsByTask = new Map();
+  for (const attachment of attachments.rows) attachmentsByTask.set(attachment.task_id,[...(attachmentsByTask.get(attachment.task_id)||[]),attachment]);
+  return { tasks: result.rows.map(task => ({ ...task, comments: commentsByTask.get(task.id) || [], attachments: attachmentsByTask.get(task.id) || [] })) };
 });
 app.post('/api/weddings/:weddingId/tasks', async (request, reply) => {
   const user = await requireUser(request, reply); if (!user) return;
