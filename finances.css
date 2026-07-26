@@ -1,1 +1,33 @@
 .page-actions{display:flex;gap:10px}.secondary-button{border:1px solid #cbd7cc;border-radius:7px;background:white;color:var(--green);padding:10px 14px;font:700 12px var(--sans);cursor:pointer}.finance-lower{margin-top:20px}.owes-panel,.payment-history{min-height:245px}.contribution-panel{grid-column:span 2}.owed-badge{background:#f8e9e5;color:#a66559;font-size:10px;font-weight:700;border-radius:20px;padding:5px 8px}.owed-item,.history-item,.contribution-item{display:grid;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}.owed-item{grid-template-columns:35px 1fr auto;gap:10px}.owed-item>span{width:30px;height:30px;background:#f2ebe4;color:#997650;border-radius:50%;display:grid;place-items:center;font:16px var(--serif)}.owed-item strong,.owed-item small,.history-item strong,.history-item small,.contribution-item strong,.contribution-item small{display:block}.owed-item small,.history-item small,.contribution-item small{font-size:11px;color:var(--muted);margin-top:3px}.owed-item b{font:600 15px var(--serif)}.history-item{grid-template-columns:32px 1fr auto;gap:10px}.history-item>span{background:#e0eddf;color:#4f7b5c;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px}.history-item b{font-size:12px}.contribution-item{grid-template-columns:1fr auto;gap:12px}.contribution-item b{font:600 16px var(--serif)}.receipt-label{display:inline-block;background:#eef3ed;color:#557862;font-size:9px;padding:3px 5px;border-radius:3px;margin-top:5px}.form-note{display:block;color:var(--muted);font-size:10px;margin-top:-4px}@media(max-width:700px){.page-actions{flex-direction:column}.page-actions button{width:100%}.finance-lower{grid-template-columns:1fr}.contribution-panel{grid-column:auto}}
+.finance-entry-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.finance-entry-panel {
+  padding: 1.1rem;
+  border: 1px solid #d9e1d8;
+  border-radius: 14px;
+  background: #f8faf7;
+}
+
+.finance-entry-panel h3 {
+  margin: .2rem 0;
+  color: #2c4031;
+}
+
+.finance-entry-panel > p:not(.eyebrow) {
+  margin: 0 0 .9rem;
+  color: #647069;
+  font-size: .9rem;
+}
+
+.finance-entry-panel .schedule-form {
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .finance-entry-panels { grid-template-columns: 1fr; }
+}

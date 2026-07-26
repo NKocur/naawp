@@ -567,9 +567,12 @@ async function loadSharedFinanceSummary() {
   list.querySelectorAll('.eyebrow')[1].textContent='PAYMENT HISTORY';
   const expenseIntro=document.createElement('p');expenseIntro.className='form-note';expenseIntro.textContent='Add an expense first, then record payments against it to keep the balance current.';list.querySelector('h2').insertAdjacentElement('afterend',expenseIntro);
   const paymentForm=list.querySelector('#shared-payment-form'),payerInput=paymentForm.elements.payer,payerSelect=document.createElement('select');
+  const expenseForm=list.querySelector('#shared-expense-form'),entryPanels=document.createElement('div');entryPanels.className='finance-entry-panels';
+  const makeEntryPanel=(eyebrow,title,copy,form)=>{const card=document.createElement('section');card.className='finance-entry-panel';card.innerHTML=`<p class="eyebrow">${eyebrow}</p><h3>${title}</h3><p>${copy}</p>`;card.append(form);return card;};
+  entryPanels.append(makeEntryPanel('STEP 1','Add an expense','Track the amount you expect to spend or have committed to.',expenseForm),makeEntryPanel('STEP 2','Record a payment','Apply money already paid to an expense and keep the balance current.',paymentForm));
+  expenseIntro.insertAdjacentElement('afterend',entryPanels);
   payerSelect.name='payerUserId'; payerSelect.required=true; payerSelect.innerHTML=`<option value="">Who paid?</option>${members.map(member=>`<option value="${escapeTaskHtml(member.id)}" ${member.id===window.everAfterUser?.id?'selected':''}>${escapeTaskHtml(member.display_name)}</option>`).join('')}`; payerInput.replaceWith(payerSelect);
   const owedBySelect=document.createElement('select'),owedAmount=document.createElement('input'); owedBySelect.name='owedByUserId'; owedBySelect.innerHTML=`<option value="">No one owes reimbursement</option>${members.map(member=>`<option value="${escapeTaskHtml(member.id)}">${escapeTaskHtml(member.display_name)} owes</option>`).join('')}`; owedAmount.name='owedAmount';owedAmount.type='number';owedAmount.min='0';owedAmount.step='0.01';owedAmount.placeholder='Amount owed back';paymentForm.insertBefore(owedBySelect,paymentForm.querySelector('button'));paymentForm.insertBefore(owedAmount,paymentForm.querySelector('button'));
-  const expenseForm=list.querySelector('#shared-expense-form');
   records.expenses.forEach((expense,index)=>{
     const row=list.querySelectorAll('.owed-item')[index]; if(!row)return;
     const actions=document.createElement('div'),edit=document.createElement('button'),archive=document.createElement('button');
