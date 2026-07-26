@@ -157,7 +157,12 @@
     event.preventDefault(); error.textContent = ''; submit.disabled = true;
     try {
       const values = Object.fromEntries(new FormData(form));
-      if (registering && inviteToken) values.invitationToken = inviteToken;
+      if (registering && inviteToken) {
+        values.invitationToken = inviteToken;
+        delete values.weddingName;
+        delete values.weddingDate;
+        delete values.location;
+      }
       await api(registering ? '/api/auth/register' : '/api/auth/login', { method: 'POST', body: JSON.stringify(values) });
       modal.close(); form.reset(); if (registering && inviteToken) clearInviteFromUrl(); setMode('login'); await refresh();
     } catch (requestError) { error.textContent = requestError.message; }
