@@ -430,13 +430,13 @@ async function convertIdeaAttachment(type,index) { const board=ideaBoards[active
 document.querySelector('#settings-form').addEventListener('submit', async event => { if(!sharedTaskWorkspaceId) return; event.preventDefault(); event.stopImmediatePropagation(); if(window.everAfterWorkspaceRole!=='owner') return window.alert('Only an Owner can change shared wedding settings.'); const values=new FormData(event.currentTarget); try { const result=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}`,{method:'PATCH',body:JSON.stringify({name:values.get('names'),weddingDate:values.get('date')||null,location:values.get('location')||null})}); weddingProfile={names:result.wedding.name,date:result.wedding.wedding_date||'',location:result.wedding.location||''}; localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile)); renderWeddingProfile(); document.querySelector('#settings-modal').close(); } catch(error) { window.alert(error.message); } },{capture:true});
 window.addEventListener('ever-after-auth-changed', event => { updateTaskWriteControls(); if(event.detail?.workspace?.role!=='owner') { document.querySelector('#open-settings').title='Only an Owner can change shared wedding settings.'; } });
 function addLocalStorageNotices() {
-  const targets = [['#budget','Legacy budget widgets'],['#details','Rings and attire']];
+  const targets = [['#details','Rings and attire']];
   targets.forEach(([selector,label]) => { const view=document.querySelector(selector); if(view && !view.querySelector('.local-module-notice')) view.insertAdjacentHTML('afterbegin', `<p class="local-module-notice"><b>${label}:</b> this section is currently stored only in this browser. It is not shared with other accounts yet.</p>`); });
 }
 addLocalStorageNotices();
 function retireMigratedLocalViews(){
   if(!sharedTaskWorkspaceId)return;
-  [['#vendors',['.quote-panel']]].forEach(([viewSelector,selectors])=>{const view=document.querySelector(viewSelector);view?.querySelector('.local-module-notice')?.remove();selectors.forEach(selector=>{const element=view?.querySelector(selector);if(element)element.style.display='none';});});
+  [['#vendors',['.quote-panel']],['#budget',['#payment-schedule-panel','#reimbursement-panel']]].forEach(([viewSelector,selectors])=>{const view=document.querySelector(viewSelector);view?.querySelector('.local-module-notice')?.remove();selectors.forEach(selector=>{const element=view?.querySelector(selector);if(element)element.style.display='none';});});
 }
 window.addEventListener('ever-after-auth-changed',retireMigratedLocalViews);
 let editingSharedExpenseId=null,editingSharedPaymentId=null;
