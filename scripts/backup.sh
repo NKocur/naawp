@@ -10,7 +10,13 @@ STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 cd "$ROOT_DIR"
 mkdir -p "$BACKUP_DIR"
 
-docker compose ps --status running --services | grep -qx db || {
+if docker info >/dev/null 2>&1; then
+  compose() { docker compose "$@"; }
+else
+  compose() { sudo docker compose "$@"; }
+fi
+
+compose ps --status running --services | grep -qx db || {
   echo "Database container is not running; no backup was made." >&2
   exit 1
 }
@@ -19,8 +25,8 @@ DB_FILE="$BACKUP_DIR/ever-after-$STAMP.sql.gz"
 UPLOADS_FILE="$BACKUP_DIR/ever-after-$STAMP-uploads.tar.gz"
 MANIFEST_FILE="$BACKUP_DIR/ever-after-$STAMP.sha256"
 
-docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' | gzip -9 > "$DB_FILE"
-docker compose exec -T api sh -c 'mkdir -p /app/uploads && tar -C /app/uploads -czf - .' > "$UPLOADS_FILE"
+compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' | gzip -9 > "$DB_FILE"
+compose exec -T api sh -c 'mkdir -p /app/uploads && tar -C /app/uploads -czf - .' > "$UPLOADS_FILE"
 
 sha256sum "$DB_FILE" "$UPLOADS_FILE" > "$MANIFEST_FILE"
 echo "Backup complete: $DB_FILE"
