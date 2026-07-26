@@ -434,7 +434,7 @@ function addLocalStorageNotices() {
   targets.forEach(([selector,label]) => { const view=document.querySelector(selector); if(view && !view.querySelector('.local-module-notice')) view.insertAdjacentHTML('afterbegin', `<p class="local-module-notice"><b>${label}:</b> this section is currently stored only in this browser. It is not shared with other accounts yet.</p>`); });
 }
 addLocalStorageNotices();
-let editingSharedExpenseId=null;
+let editingSharedExpenseId=null,editingSharedPaymentId=null;
 async function loadSharedFinanceSummary() {
   if(!sharedTaskWorkspaceId||!window.everAfterApi||!['owner','editor'].includes(window.everAfterWorkspaceRole)) return;
   const result=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/finance/summary`),summary=result.summary,budget=document.querySelector('#budget');
@@ -463,9 +463,20 @@ async function loadSharedFinanceSummary() {
     archive.onclick=async()=>{if(!window.confirm(`Delete expense ${expense.name}?`))return;try{await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/expenses/${expense.id}`,{method:'DELETE'});await loadSharedFinanceSummary();}catch(error){window.alert(error.message);}};
     actions.append(edit,archive); row.append(actions);
   });
-  paymentRecords.payments.forEach((payment,index)=>{const row=list.querySelectorAll('.history-item')[index];if(!row)return;const button=document.createElement('button');button.className='danger-action';button.dataset.archiveSharedPayment=payment.id;button.textContent='Delete';row.append(button);});
+  paymentRecords.payments.forEach((payment,index)=>{
+    const row=list.querySelectorAll('.history-item')[index]; if(!row)return;
+    const edit=document.createElement('button'),button=document.createElement('button'); edit.textContent='Edit'; button.className='danger-action'; button.dataset.archiveSharedPayment=payment.id; button.textContent='Delete';
+    edit.onclick=()=>{
+      editingSharedPaymentId=payment.id; paymentForm.elements.expenseId.value=payment.expense_id||''; paymentForm.elements.payerUserId.value=payment.payer_user_id||''; paymentForm.elements.amount.value=payment.amount; paymentForm.elements.paidOn.value=payment.paid_on||'';
+      paymentForm.querySelector('button').textContent='Save shared payment'; let cancel=paymentForm.querySelector('[data-cancel-shared-payment]');
+      if(!cancel){cancel=document.createElement('button');cancel.type='button';cancel.dataset.cancelSharedPayment='';cancel.textContent='Cancel edit';paymentForm.append(cancel);}
+      cancel.onclick=()=>{editingSharedPaymentId=null;paymentForm.reset();paymentForm.elements.payerUserId.value=window.everAfterUser?.id||'';paymentForm.querySelector('button').textContent='Record shared payment';cancel.remove();};
+      paymentForm.scrollIntoView({behavior:'smooth',block:'center'});
+    };
+    row.append(edit,button);
+  });
   expenseForm.onsubmit=async event=>{event.preventDefault();const values=new FormData(event.currentTarget),payload={name:values.get('name'),committed:Number(values.get('amount')),category:values.get('category'),stage:values.get('stage'),dueDate:values.get('dueDate')||null};try{const path=editingSharedExpenseId?`/api/weddings/${sharedTaskWorkspaceId}/expenses/${editingSharedExpenseId}`:`/api/weddings/${sharedTaskWorkspaceId}/expenses`;await window.everAfterApi(path,{method:editingSharedExpenseId?'PATCH':'POST',body:JSON.stringify(payload)});editingSharedExpenseId=null;await loadSharedFinanceSummary();}catch(error){window.alert(error.message);}};
-  paymentForm.onsubmit=async event=>{event.preventDefault();const values=new FormData(event.currentTarget);try{await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/payments`,{method:'POST',body:JSON.stringify({expenseId:values.get('expenseId')||null,payerUserId:values.get('payerUserId'),amount:Number(values.get('amount')),paidOn:values.get('paidOn')||undefined})});await loadSharedFinanceSummary();}catch(error){window.alert(error.message);}};
+  paymentForm.onsubmit=async event=>{event.preventDefault();const values=new FormData(event.currentTarget),payload={expenseId:values.get('expenseId')||null,payerUserId:values.get('payerUserId'),amount:Number(values.get('amount')),paidOn:values.get('paidOn')||undefined};try{const path=editingSharedPaymentId?`/api/weddings/${sharedTaskWorkspaceId}/payments/${editingSharedPaymentId}`:`/api/weddings/${sharedTaskWorkspaceId}/payments`;await window.everAfterApi(path,{method:editingSharedPaymentId?'PATCH':'POST',body:JSON.stringify(payload)});editingSharedPaymentId=null;await loadSharedFinanceSummary();}catch(error){window.alert(error.message);}};
   list.querySelectorAll('[data-archive-shared-payment]').forEach(button=>button.onclick=async()=>{if(!window.confirm('Delete this payment record?'))return;try{await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/payments/${button.dataset.archiveSharedPayment}`,{method:'DELETE'});await loadSharedFinanceSummary();}catch(error){window.alert(error.message);}});
 }
 window.addEventListener('ever-after-auth-changed',()=>loadSharedFinanceSummary().catch(error=>console.error('Could not load shared finance summary',error)));
