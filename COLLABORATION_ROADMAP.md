@@ -1,5 +1,7 @@
 # Collaboration and production roadmap
 
+> The active post-audit execution plan is in `NEXT_PHASE_PLAN.md`. This document remains the detailed historical implementation roadmap.
+
 ## Purpose
 
 Turn the deployed wedding planner into a shared workspace for Andrea, Nash, and trusted family members without weakening privacy, financial controls, or data recovery.
