@@ -225,6 +225,14 @@ app.get('/api/weddings/:weddingId/members', async (request, reply) => {
     WHERE m.wedding_id=$1 ORDER BY u.display_name,u.email`, [weddingId]);
   return { members: members.rows };
 });
+app.get('/api/weddings/:weddingId/activity', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId}=request.params; await requireMembership(user.id,weddingId,allRoles);
+  const result=await query(`SELECT a.id,a.entity_type,a.entity_id,a.action,a.details,a.created_at,u.display_name AS actor_name
+    FROM audit_events a LEFT JOIN users u ON u.id=a.actor_id
+    WHERE a.wedding_id=$1 ORDER BY a.created_at DESC LIMIT 100`,[weddingId]);
+  return { events:result.rows };
+});
 app.post('/api/weddings/:weddingId/invitations', { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } }, async (request, reply) => {
   const user = await ownerUser(request, reply); if (!user) return;
   const { weddingId } = request.params;

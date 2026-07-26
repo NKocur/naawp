@@ -107,9 +107,10 @@ let editingGuestIndex = null;
 let contacts = JSON.parse(localStorage.getItem('everAfterContacts') || 'null') || [];
 let editingContactIndex = null;
 let activity = JSON.parse(localStorage.getItem('everAfterActivity') || 'null') || [];
+let sharedActivity = [];
 let signedInPlannerName = '';
 function logActivity(text){activity.unshift({text,time:'Just now'});activity=activity.slice(0,25);localStorage.setItem('everAfterActivity',JSON.stringify(activity));renderActivity();}
-function renderActivity(){document.querySelector('#activity-list').innerHTML=activity.map(item=>`<div class="activity-item"><span>✦</span><div><strong>${item.text}</strong><small>${item.time}</small></div></div>`).join('') || '<p class="empty-state">No recent changes.</p>';}
+function renderActivity(){const items=sharedTasksActive?sharedActivity:activity;document.querySelector('#activity-list').innerHTML=items.map(item=>`<div class="activity-item"><span>✦</span><div><strong>${escapeTaskHtml(item.text)}</strong><small>${escapeTaskHtml(item.time)}</small></div></div>`).join('') || '<p class="empty-state">No recent changes.</p>';}
 const money = value => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(value);
 function renderSpendBreakdown(){
   const donut=document.querySelector('#spend-donut'),totalLabel=document.querySelector('#spend-donut-total'),legend=document.querySelector('#spend-legend');
@@ -325,6 +326,7 @@ async function loadSharedTasks() {
   const result = await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks`);
   tasks = result.tasks.map(fromSharedTask);
   renderTasks();
+  loadSharedActivity().catch(error=>console.error('Could not refresh shared activity',error));
 }
 async function saveSharedTask(task, existingTask) {
   const assigneeUserId = taskAssignees.find(member => member.id === task[7] || member.name === task[7])?.id || existingTask?.[14] || null;
@@ -473,3 +475,20 @@ async function importSharedTaskBackup(event) {
 }
 window.addEventListener('ever-after-auth-changed', configureSharedTaskImport);
 configureSharedTaskImport();
+function describeSharedActivity(event) {
+  const actor=event.actor_name||'Someone', entity=event.entity_type.replaceAll('_',' '), action=event.action.replaceAll('_',' ');
+  const details=event.details||{};
+  if(event.entity_type==='task'&&event.action==='reordered') return `${actor} reordered checklist tasks`;
+  if(event.entity_type==='task'&&event.action==='imported') return `${actor} imported ${details.count||0} checklist tasks`;
+  if(event.entity_type==='task_attachment') return `${actor} ${action} ${details.originalName||'a task attachment'}`;
+  if(event.entity_type==='task_comment') return `${actor} ${action} a task comment`;
+  if(event.entity_type==='task') return `${actor} ${action} a task`;
+  return `${actor} ${action} ${entity}`;
+}
+async function loadSharedActivity() {
+  if(!sharedTaskWorkspaceId||!window.everAfterApi)return;
+  const result=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/activity`);
+  sharedActivity=result.events.map(event=>({text:describeSharedActivity(event),time:new Date(event.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}));
+  renderActivity();
+}
+window.addEventListener('ever-after-auth-changed',()=>{if(sharedTaskWorkspaceId){loadSharedActivity().catch(error=>console.error('Could not load shared activity',error));document.querySelector('#clear-activity').classList.add('hidden');}else document.querySelector('#clear-activity').classList.remove('hidden');});

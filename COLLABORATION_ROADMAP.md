@@ -74,7 +74,7 @@ Cloudflare Access is the outer gate: it controls who can reach the website. The 
 
 **Goal:** make the checklist the first fully shared module.
 
-**Current implementation status:** In progress. Server-backed task records, ordered Kanban columns, archive actions, member-backed assignments, server-backed comments, role-aware checklist controls, an owner-only task-backup import, and private task attachments are implemented. Task files are stored in a Docker-managed Pi volume with metadata/checksums in PostgreSQL and membership-checked upload, open, and archive routes. Concurrent-edit feedback and a shared activity screen remain.
+**Current implementation status:** In progress. Server-backed task records, ordered Kanban columns, archive actions, member-backed assignments, server-backed comments, role-aware checklist controls, an owner-only task-backup import, private task attachments, and a shared activity feed are implemented. Task files are stored in a Docker-managed Pi volume with metadata/checksums in PostgreSQL and membership-checked upload, open, and archive routes. Concurrent-edit feedback remains.
 
 1. Complete task API support for ordering within a Kanban column, category changes, assignments, due dates, priority, comments, archive/restore, and attachments.
 2. Add `task_comments` and `task_attachments` tables with author, edit history, archive state, and timestamps.
