@@ -33,6 +33,7 @@ Completed in the audit fix pass:
 - Make the Save Task route use the visible task form and authenticated workspace ID directly rather than a stale hidden select/state flag.
 - Disable hidden expense controls in task mode so browser-native validation cannot block task saving; also corrected two console errors found during verification.
 - Reveal every task-specific field when adding or editing a task, including the due-date control.
+- Preserve and migrate legacy wedding date/location values into the shared workspace instead of replacing them with blank database fields at sign-in.
 
 Still planned before broader use:
 
