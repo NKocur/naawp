@@ -339,9 +339,17 @@ async function saveSharedTask(task, existingTask) {
 // Save shared tasks directly from the button so that handling cannot consume the action.
 document.querySelector('#save-entry').addEventListener('click', event => {
   const form = document.querySelector('#entry-form');
-  if (document.querySelector('#entry-type').value !== 'task' || !sharedTasksActive) return;
+  const taskFieldsVisible = !form.querySelector('.task-fields').classList.contains('hidden');
+  if (!taskFieldsVisible) return;
   event.preventDefault();
   event.stopImmediatePropagation();
+  const workspaceId = sharedTaskWorkspaceId || window.everAfterWorkspaceId;
+  if (!workspaceId || !window.everAfterApi) {
+    window.alert('Your shared workspace is still loading. Close this form, wait a moment, and try again.');
+    return;
+  }
+  sharedTaskWorkspaceId = workspaceId;
+  sharedTasksActive = true;
   if (!form.reportValidity() || form.dataset.taskSaving === 'true') return;
   const values = new FormData(form);
   const dueDate = values.get('dueDate');

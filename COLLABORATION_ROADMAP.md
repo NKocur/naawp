@@ -30,6 +30,7 @@ Completed in the audit fix pass:
 - Route shared task saves around the retired browser-local entry-form handler so task creation reaches the API.
 - Use a direct, guarded shared-task Save button path so the dialog's legacy submit behavior cannot prevent a task request.
 - Reset the task form before setting its type; resetting afterward silently reverted the visible task modal to an expense value.
+- Make the Save Task route use the visible task form and authenticated workspace ID directly rather than a stale hidden select/state flag.
 
 Still planned before broader use:
 
