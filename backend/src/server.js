@@ -11,7 +11,7 @@ const app = Fastify({ logger: true, trustProxy: true });
 const isProduction = process.env.NODE_ENV === 'production';
 const sessionName = 'ever_after_session';
 const allRoles = ['owner', 'editor', 'contributor', 'viewer'];
-const invitationRoles = ['editor', 'contributor', 'viewer'];
+const invitationRoles = ['owner', 'editor', 'contributor', 'viewer'];
 
 await app.register(cookie);
 await app.register(rateLimit, { global: true, max: 200, timeWindow: '1 minute' });

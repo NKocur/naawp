@@ -23,7 +23,7 @@ Cloudflare Access is the outer gate: it controls who can reach the website. The 
 
 | Role | Intended access |
 | --- | --- |
-| Owner | Full control of the workspace, finances, invitations, roles, settings, exports, archive recovery, and deletion approvals. Andrea and Nash remain owners. |
+| Owner | Full control of the workspace, finances, invitations, roles, settings, exports, archive recovery, and deletion approvals. Andrea and Nash should both be owners. |
 | Editor | Create and edit planning records across allowed modules, including tasks, vendors, ideas, reservations, and finances. Cannot change owners or workspace security. |
 | Contributor | Add comments, ideas, attachments, and task updates; work on assigned tasks; no financial totals unless explicitly granted. |
 | Viewer | Read-only access to selected modules; no financial information by default. |
