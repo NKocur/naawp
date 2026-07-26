@@ -8,6 +8,7 @@ This backend is the first migration step from the browser-local demo to a shared
 - PostgreSQL-backed tasks, expenses, sessions, memberships, and audit events.
 - Protected task API endpoints and a health check.
 - Task create/update/archive operations recorded in the server-side audit log.
+- Owner-managed invitation links, member roles, revocation, and removal safeguards.
 
 The front-end still uses local storage. Do not treat the app as multi-user until the UI is migrated to the API.
 
@@ -41,6 +42,13 @@ Send a JSON request to `POST /api/auth/register` with `email`, a password of at 
 - `POST /api/auth/logout`
 - `GET /api/auth/me`
 - `GET /api/weddings`
+- `GET /api/weddings/:weddingId/collaboration` (owner)
+- `POST /api/weddings/:weddingId/invitations` (owner; returns a one-time invitation token)
+- `DELETE /api/weddings/:weddingId/invitations/:invitationId` (owner)
+- `PATCH /api/weddings/:weddingId/members/:memberId` (owner)
+- `DELETE /api/weddings/:weddingId/members/:memberId` (owner)
+- `GET /api/invitations/:token`
+- `POST /api/invitations/accept`
 - `GET /api/weddings/:weddingId/tasks`
 - `POST /api/weddings/:weddingId/tasks`
 - `PATCH /api/weddings/:weddingId/tasks/:taskId`
@@ -52,4 +60,6 @@ Send a JSON request to `POST /api/auth/register` with `email`, a password of at 
 - Cookies are `HttpOnly` and `SameSite=Strict`; production cookies are also `Secure`.
 - Authentication endpoints are rate limited.
 - Every protected route checks membership role on the server.
+- Invitation tokens are random, stored only as SHA-256 hashes, expire, and are revoked after use.
+- Adding an email to Cloudflare Access remains a separate required step before an invited person can reach the app.
 - Backup the PostgreSQL volume off-device before relying on the backend for real wedding data.

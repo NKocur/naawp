@@ -43,6 +43,8 @@ Cloudflare Access is the outer gate: it controls who can reach the website. The 
 
 **Goal:** owners can invite people into the existing wedding workspace and assign safe, enforceable roles.
 
+**Current implementation status:** In progress. The API now has invitations, owner-only membership management, token-hash storage, expiry/revocation, audit events, and a first owner-only People & access dialog. Email delivery is intentionally not automated yet: an owner copies the generated private invitation link and separately adds that email to Cloudflare Access.
+
 #### Backend
 
 1. Add an `invitations` table with wedding, email, role, token hash, expiry, inviter, accepted time, revoked time, and optional module permissions.

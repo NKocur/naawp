@@ -5,68 +5,128 @@
     if (!response.ok) throw new Error(body.error || 'The server could not complete that request.');
     return body;
   };
-
   const topActions = document.querySelector('.top-actions');
   if (!topActions) return;
-  topActions.insertAdjacentHTML('afterbegin', '<button class="account-button" id="open-account">Sign in</button>');
-  document.body.insertAdjacentHTML('beforeend', `<dialog class="auth-dialog" id="account-modal"><button class="close-modal" type="button" aria-label="Close">×</button><p class="eyebrow">SHARED WORKSPACE</p><h2 id="account-title">Sign in</h2><form id="account-form"><label>Email<input name="email" type="email" autocomplete="email" required /></label><label>Password<input name="password" type="password" autocomplete="current-password" minlength="12" required /></label><div class="register-only hidden"><label>Your name<input name="displayName" autocomplete="name" /></label><label>Wedding workspace name<input name="weddingName" placeholder="e.g. Andrea & Nash" /></label></div><p class="auth-error" id="account-error"></p><button class="add-button" type="submit" id="account-submit">Sign in</button><button class="auth-switch" type="button" id="account-switch">Create an account</button></form></dialog>`);
+  topActions.insertAdjacentHTML('afterbegin', `<button class="account-button hidden" id="manage-people">People & access</button><button class="account-button" id="open-account">Sign in</button>`);
+  document.body.insertAdjacentHTML('beforeend', `<dialog class="auth-dialog" id="account-modal"><button class="close-modal" type="button" aria-label="Close">×</button><p class="eyebrow">SHARED WORKSPACE</p><h2 id="account-title">Sign in</h2><p class="auth-help hidden" id="invite-help"></p><form id="account-form"><label>Email<input name="email" type="email" autocomplete="email" required /></label><label>Password<input name="password" type="password" autocomplete="current-password" minlength="12" required /></label><div class="register-only hidden"><label>Your name<input name="displayName" autocomplete="name" /></label><label class="workspace-name">Wedding workspace name<input name="weddingName" placeholder="e.g. Andrea & Nash" /></label></div><p class="auth-error" id="account-error"></p><button class="add-button" type="submit" id="account-submit">Sign in</button><button class="auth-switch" type="button" id="account-switch">Create an account</button></form></dialog>
+  <dialog class="auth-dialog people-dialog" id="people-modal"><button class="close-modal" type="button" aria-label="Close">×</button><p class="eyebrow">COLLABORATION</p><h2>People & access</h2><p class="auth-help">Cloudflare controls who reaches the site. Add the same email to Cloudflare Access before sharing an invitation.</p><form id="invite-form" class="invite-form"><label>Email<input name="email" type="email" required placeholder="family@example.com" /></label><label>Role<select name="role"><option value="contributor">Contributor</option><option value="viewer">Viewer</option><option value="editor">Editor</option></select></label><label>Expires in<select name="expiresInDays"><option value="14">14 days</option><option value="7">7 days</option><option value="30">30 days</option></select></label><button class="add-button" type="submit">Create invitation</button></form><p class="auth-error" id="people-error"></p><div class="people-section"><p class="eyebrow">MEMBERS</p><div id="member-list"></div></div><div class="people-section"><p class="eyebrow">PENDING INVITATIONS</p><div id="invitation-list"></div></div></dialog>`);
 
   const button = document.querySelector('#open-account');
+  const peopleButton = document.querySelector('#manage-people');
   const modal = document.querySelector('#account-modal');
+  const peopleModal = document.querySelector('#people-modal');
   const form = document.querySelector('#account-form');
   const title = document.querySelector('#account-title');
   const error = document.querySelector('#account-error');
   const submit = document.querySelector('#account-submit');
   const registerFields = document.querySelector('.register-only');
+  const workspaceName = document.querySelector('.workspace-name');
   const switcher = document.querySelector('#account-switch');
+  const inviteHelp = document.querySelector('#invite-help');
   let registering = false;
+  let user = null;
+  let workspace = null;
+  let inviteToken = new URLSearchParams(location.search).get('invite');
 
   const setMode = mode => {
     registering = mode === 'register';
-    title.textContent = registering ? 'Create your workspace' : 'Sign in';
-    submit.textContent = registering ? 'Create account' : 'Sign in';
+    const joining = registering && Boolean(inviteToken);
+    title.textContent = joining ? 'Join wedding workspace' : registering ? 'Create your workspace' : 'Sign in';
+    submit.textContent = joining ? 'Join workspace' : registering ? 'Create account' : 'Sign in';
     switcher.textContent = registering ? 'I already have an account' : 'Create an account';
     registerFields.classList.toggle('hidden', !registering);
-    form.elements.password.autocomplete = registering ? 'new-password' : 'current-password';
+    workspaceName.classList.toggle('hidden', joining);
     form.elements.displayName.required = registering;
-    form.elements.weddingName.required = registering;
+    form.elements.weddingName.required = registering && !joining;
+    form.elements.password.autocomplete = registering ? 'new-password' : 'current-password';
+    inviteHelp.classList.toggle('hidden', !joining);
+    if (joining) inviteHelp.textContent = 'Use the same email address the owner invited. After joining, this link will stop working.';
     error.textContent = '';
+  };
+  const clearInviteFromUrl = () => { inviteToken = null; const url = new URL(location.href); url.searchParams.delete('invite'); history.replaceState({}, '', url); };
+  const renderCollaboration = async () => {
+    if (!workspace || workspace.role !== 'owner') return;
+    const data = await api(`/api/weddings/${workspace.id}/collaboration`);
+    document.querySelector('#member-list').innerHTML = data.members.map(member => `<div class="person-row"><div><strong>${escapeHtml(member.display_name)}</strong><small>${escapeHtml(member.email)}</small></div><select data-member-role="${member.id}">${['owner','editor','contributor','viewer'].map(role => `<option value="${role}" ${role === member.role ? 'selected' : ''}>${role}</option>`).join('')}</select>${member.id === user.id ? '' : '<button type="button" class="text-button" data-remove-member="' + member.id + '">Remove</button>'}</div>`).join('') || '<p class="auth-help">No members yet.</p>';
+    document.querySelector('#invitation-list').innerHTML = data.invitations.map(invitation => `<div class="person-row"><div><strong>${escapeHtml(invitation.email)}</strong><small>${invitation.role} · expires ${new Date(invitation.expires_at).toLocaleDateString()}</small></div><button type="button" class="text-button" data-revoke-invitation="${invitation.id}">Revoke</button></div>`).join('') || '<p class="auth-help">No pending invitations.</p>';
+  };
+  const openPeople = async () => {
+    if (!workspace || workspace.role !== 'owner') return;
+    document.querySelector('#people-error').textContent = '';
+    peopleModal.showModal();
+    try { await renderCollaboration(); } catch (requestError) { document.querySelector('#people-error').textContent = requestError.message; }
   };
   const refresh = async () => {
     try {
       const result = await api('/api/auth/me');
       if (result.user) {
+        user = result.user;
         const workspaces = await api('/api/weddings');
-        const workspace = workspaces.weddings[0] || null;
+        workspace = workspaces.weddings[0] || null;
+        if (inviteToken) {
+          try { await api('/api/invitations/accept', { method: 'POST', body: JSON.stringify({ token: inviteToken }) }); clearInviteFromUrl(); return refresh(); }
+          catch (requestError) { modal.showModal(); setMode('login'); error.textContent = requestError.message; }
+        }
         window.everAfterWorkspaceId = workspace?.id || null;
-        window.dispatchEvent(new CustomEvent('ever-after-auth-changed', { detail: { user: result.user, workspace } }));
-        button.textContent = result.user.display_name;
-        button.onclick = async () => { await api('/api/auth/logout', { method: 'POST' }); window.everAfterWorkspaceId = null; window.dispatchEvent(new CustomEvent('ever-after-auth-changed', { detail: { user: null, workspace: null } })); await refresh(); };
+        window.dispatchEvent(new CustomEvent('ever-after-auth-changed', { detail: { user, workspace } }));
+        button.textContent = user.display_name;
         button.title = 'Click to sign out';
+        button.onclick = async () => { await api('/api/auth/logout', { method: 'POST' }); user = null; workspace = null; window.everAfterWorkspaceId = null; peopleButton.classList.add('hidden'); window.dispatchEvent(new CustomEvent('ever-after-auth-changed', { detail: { user: null, workspace: null } })); await refresh(); };
+        peopleButton.classList.toggle('hidden', workspace?.role !== 'owner');
         return;
       }
-    } catch { /* The static demo can still run without the API. */ }
-    window.everAfterWorkspaceId = null;
-    button.textContent = 'Sign in';
-    button.title = 'Sign in to the production workspace';
-    button.onclick = () => modal.showModal();
+    } catch { /* The local demo remains usable when the API is unavailable. */ }
+    user = null; workspace = null; window.everAfterWorkspaceId = null;
+    peopleButton.classList.add('hidden'); button.textContent = 'Sign in'; button.title = 'Sign in to the production workspace';
+    button.onclick = () => { setMode(inviteToken ? 'register' : 'login'); modal.showModal(); };
+    if (inviteToken) { setMode('register'); modal.showModal(); }
   };
+  const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[character]));
+
   document.querySelector('#account-modal .close-modal').onclick = () => modal.close();
+  document.querySelector('#people-modal .close-modal').onclick = () => peopleModal.close();
+  peopleButton.onclick = openPeople;
+  document.querySelector('#invite-button').onclick = openPeople;
+  document.querySelector('#invite-wide').onclick = openPeople;
   switcher.onclick = () => setMode(registering ? 'login' : 'register');
   form.addEventListener('submit', async event => {
-    event.preventDefault();
-    error.textContent = '';
-    submit.disabled = true;
+    event.preventDefault(); error.textContent = ''; submit.disabled = true;
     try {
       const values = Object.fromEntries(new FormData(form));
+      if (registering && inviteToken) values.invitationToken = inviteToken;
       await api(registering ? '/api/auth/register' : '/api/auth/login', { method: 'POST', body: JSON.stringify(values) });
-      modal.close(); form.reset(); setMode('login'); await refresh();
-    } catch (requestError) {
-      error.textContent = requestError.message;
-    } finally {
-      submit.disabled = false;
-    }
+      modal.close(); form.reset(); if (registering && inviteToken) clearInviteFromUrl(); setMode('login'); await refresh();
+    } catch (requestError) { error.textContent = requestError.message; }
+    finally { submit.disabled = false; }
   });
-  setMode('login');
+  document.querySelector('#invite-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const peopleError = document.querySelector('#people-error'); peopleError.textContent = '';
+    try {
+      const values = Object.fromEntries(new FormData(event.currentTarget));
+      values.expiresInDays = Number(values.expiresInDays);
+      const result = await api(`/api/weddings/${workspace.id}/invitations`, { method: 'POST', body: JSON.stringify(values) });
+      const link = new URL(location.href); link.searchParams.set('invite', result.token);
+      await navigator.clipboard?.writeText(link.toString());
+      window.prompt('Copy this private invitation link and send it only to the invited person:', link.toString());
+      event.currentTarget.reset(); await renderCollaboration();
+    } catch (requestError) { peopleError.textContent = requestError.message; }
+  });
+  document.querySelector('#people-modal').addEventListener('change', async event => {
+    const control = event.target.closest('[data-member-role]'); if (!control) return;
+    try { await api(`/api/weddings/${workspace.id}/members/${control.dataset.memberRole}`, { method: 'PATCH', body: JSON.stringify({ role: control.value }) }); await renderCollaboration(); }
+    catch (requestError) { document.querySelector('#people-error').textContent = requestError.message; await renderCollaboration(); }
+  });
+  document.querySelector('#people-modal').addEventListener('click', async event => {
+    const revoke = event.target.closest('[data-revoke-invitation]');
+    const remove = event.target.closest('[data-remove-member]');
+    if (!revoke && !remove) return;
+    try {
+      if (revoke) await api(`/api/weddings/${workspace.id}/invitations/${revoke.dataset.revokeInvitation}`, { method: 'DELETE' });
+      if (remove && window.confirm('Remove this person from the wedding workspace?')) await api(`/api/weddings/${workspace.id}/members/${remove.dataset.removeMember}`, { method: 'DELETE' });
+      await renderCollaboration();
+    } catch (requestError) { document.querySelector('#people-error').textContent = requestError.message; }
+  });
+  setMode(inviteToken ? 'register' : 'login');
   refresh();
 })();
