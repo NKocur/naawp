@@ -314,6 +314,35 @@ app.delete('/api/weddings/:weddingId/payments/:paymentId', async (request, reply
   await withTransaction(async client=>{const result=await client.query('UPDATE payments SET archived_at=now(),updated_by=$3,updated_at=now() WHERE id=$1 AND wedding_id=$2 AND archived_at IS NULL RETURNING id',[paymentId,weddingId,user.id]);if(!result.rows[0])throw httpError('Payment not found.',404);await audit(client,weddingId,user.id,'payment',paymentId,'archived');});
   reply.code(204).send();
 });
+app.get('/api/weddings/:weddingId/vendors', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const result=await query(`SELECT v.*,COALESCE((SELECT SUM(e.committed) FROM expenses e WHERE e.vendor_id=v.id AND e.archived_at IS NULL AND e.stage NOT IN ('cancelled','refunded')),0)::numeric AS committed_total,
+    COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.vendor_id=v.id AND p.archived_at IS NULL),0)::numeric AS paid_total
+    FROM vendors v WHERE v.wedding_id=$1 AND v.archived_at IS NULL ORDER BY v.name`,[weddingId]);
+  return {vendors:result.rows};
+});
+app.post('/api/weddings/:weddingId/vendors', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const body=z.object({name:z.string().trim().min(1).max(200),category:z.string().max(80).optional(),status:z.enum(['researching','contacted','quoted','shortlisted','booked','declined','cancelled']).optional(),contact:z.string().max(1000).nullable().optional(),notes:z.string().max(5000).nullable().optional(),terms:z.string().max(5000).nullable().optional()}).parse(request.body);
+  const vendor=await withTransaction(async client=>{const result=await client.query(`INSERT INTO vendors (wedding_id,name,category,status,contact,notes,terms,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING *`,[weddingId,body.name,body.category||'Other',body.status||'researching',body.contact||null,body.notes||null,body.terms||null,user.id]);await audit(client,weddingId,user.id,'vendor',result.rows[0].id,'created');return result.rows[0];});
+  reply.code(201).send({vendor});
+});
+app.patch('/api/weddings/:weddingId/vendors/:vendorId', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,vendorId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const body=z.object({name:z.string().trim().min(1).max(200).optional(),category:z.string().max(80).optional(),status:z.enum(['researching','contacted','quoted','shortlisted','booked','declined','cancelled']).optional(),contact:z.string().max(1000).nullable().optional(),notes:z.string().max(5000).nullable().optional(),terms:z.string().max(5000).nullable().optional()}).parse(request.body);
+  const fields={name:body.name,category:body.category,status:body.status,contact:body.contact,notes:body.notes,terms:body.terms},entries=Object.entries(fields).filter(([,value])=>value!==undefined);if(!entries.length)return reply.code(400).send({error:'No changes supplied.'});
+  const vendor=await withTransaction(async client=>{const values=[weddingId,vendorId],sets=entries.map(([column,value],index)=>{values.push(value);return `${column}=$${index+3}`;});values.push(user.id);const result=await client.query(`UPDATE vendors SET ${sets.join(',')},updated_by=$${values.length},updated_at=now() WHERE wedding_id=$1 AND id=$2 AND archived_at IS NULL RETURNING *`,values);if(!result.rows[0])throw httpError('Vendor not found.',404);await audit(client,weddingId,user.id,'vendor',vendorId,'updated',{fields:entries.map(([column])=>column)});return result.rows[0];});
+  return {vendor};
+});
+app.delete('/api/weddings/:weddingId/vendors/:vendorId', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,vendorId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  await withTransaction(async client=>{const result=await client.query('UPDATE vendors SET archived_at=now(),updated_by=$3,updated_at=now() WHERE wedding_id=$1 AND id=$2 AND archived_at IS NULL RETURNING id',[weddingId,vendorId,user.id]);if(!result.rows[0])throw httpError('Vendor not found.',404);await audit(client,weddingId,user.id,'vendor',vendorId,'archived');});
+  reply.code(204).send();
+});
 app.post('/api/weddings/:weddingId/invitations', { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } }, async (request, reply) => {
   const user = await ownerUser(request, reply); if (!user) return;
   const { weddingId } = request.params;
