@@ -2,9 +2,20 @@
   const api = async (path, options = {}) => {
     const headers = { ...(options.headers || {}) };
     if (options.body !== undefined && !(options.body instanceof FormData) && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
-    const response = await fetch(path, { credentials: 'same-origin', ...options, headers });
-    const body = response.status === 204 ? null : await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error || 'The server could not complete that request.');
+    let response;
+    try {
+      response = await fetch(path, { credentials: 'same-origin', ...options, headers });
+    } catch (error) {
+      throw new Error('Could not reach the planner server. Check your connection and try again.');
+    }
+    const isJson = response.headers.get('content-type')?.includes('application/json');
+    const body = response.status === 204 ? null : isJson ? await response.json().catch(() => ({})) : null;
+    if (!response.ok) {
+      const fallback = response.status === 413
+        ? 'That file is too large. Attachments can be up to 50 MB.'
+        : `The server could not complete that request (HTTP ${response.status}).`;
+      throw new Error(body?.error || fallback);
+    }
     return body;
   };
   window.everAfterApi = api;
