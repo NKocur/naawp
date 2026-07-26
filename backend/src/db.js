@@ -1,6 +1,12 @@
 import pg from 'pg';
 
-const { Pool } = pg;
+const { Pool, types } = pg;
+
+// PostgreSQL DATE is a calendar day, not a moment in time. The default parser
+// turns it into a JavaScript Date, which serializes as an ISO timestamp and is
+// invalid when assigned to `<input type="date">` or combined with a time again.
+// Keep DATE values in their native YYYY-MM-DD form throughout the API.
+types.setTypeParser(1082, value => value);
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
