@@ -1,1 +1,38 @@
 .vendor-card{position:relative}.vendor-actions{display:flex;gap:8px;margin-top:12px}.vendor-actions button{border:0;background:none;padding:0;color:var(--green);font:700 10px var(--sans);cursor:pointer}.vendor-actions .danger-action{color:#b46558}.vendor-image.catering,.vendor-image.music,.vendor-image.beauty,.vendor-image.other{background:#e8eee3;color:#5a7b5c}
+.vendor-entry-panel {
+  margin: 1rem 0 1.5rem;
+  padding: 1.1rem;
+  border: 1px solid #d9e1d8;
+  border-radius: 14px;
+  background: #f8faf7;
+}
+
+.vendor-entry-panel h3 { margin: .2rem 0; color: #2c4031; }
+.vendor-entry-panel > p:not(.eyebrow) { margin: 0 0 .9rem; color: #647069; font-size: .9rem; }
+
+.vendor-entry-panel .vendor-entry-form,
+#shared-vendor-quotes .vendor-quote-entry-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .7rem;
+  margin: 0;
+}
+
+.vendor-entry-panel input,
+.vendor-entry-panel select,
+.vendor-entry-panel textarea,
+#shared-vendor-quotes .vendor-quote-entry-form input,
+#shared-vendor-quotes .vendor-quote-entry-form select,
+#shared-vendor-quotes .vendor-quote-entry-form textarea { min-width: 0; width: 100%; box-sizing: border-box; }
+
+.vendor-entry-panel textarea,
+#shared-vendor-quotes .vendor-quote-entry-form textarea,
+.vendor-entry-panel .vendor-entry-form button,
+#shared-vendor-quotes .vendor-quote-entry-form button { grid-column: 1 / -1; }
+
+@media (max-width: 760px) {
+  .vendor-entry-panel .vendor-entry-form,
+  #shared-vendor-quotes .vendor-quote-entry-form { grid-template-columns: 1fr; }
+  .vendor-entry-panel .vendor-entry-form > *,
+  #shared-vendor-quotes .vendor-quote-entry-form > * { grid-column: 1; }
+}
