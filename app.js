@@ -272,7 +272,8 @@ function editItineraryItem(index){const item=itineraryItems[index],form=document
 function deleteItineraryItem(index){if(!window.confirm(`Delete “${itineraryItems[index].title}”?`))return;itineraryItems.splice(index,1);localStorage.setItem('everAfterItineraryItems',JSON.stringify(itineraryItems));renderItinerary();}
 function renderHoneymoon(){const reservationCommitments=reservations.reduce((sum,item)=>sum+item.total,0),committed=(honeymoon.otherCommitted||0)+reservationCommitments,remaining=Math.max(0,honeymoon.budget-committed),percent=honeymoon.budget?Math.min(100,(committed/honeymoon.budget)*100):0;document.querySelector('#honeymoon-destination').textContent=honeymoon.destination;document.querySelector('#honeymoon-dates').textContent=honeymoon.dates;document.querySelector('#honeymoon-description').textContent=honeymoon.description;document.querySelector('#honeymoon-budget').textContent=money(honeymoon.budget);document.querySelector('#honeymoon-committed').textContent=`${money(committed)} committed`;document.querySelector('#honeymoon-remaining').textContent=`${money(remaining)} remaining`;document.querySelector('#honeymoon-progress').style.width=`${percent}%`;}
 function openHoneymoonModal(){const form=document.querySelector('#honeymoon-form');form.elements.destination.value=honeymoon.destination;form.elements.dates.value=honeymoon.dates;form.elements.description.value=honeymoon.description;form.elements.budget.value=honeymoon.budget;form.elements.otherCommitted.value=honeymoon.otherCommitted||'';document.querySelector('#honeymoon-modal').showModal();}
-function setEntryType(type){const task=type==='task',form=document.querySelector('#entry-form');document.querySelector('#entry-type').value=type;document.querySelector('#modal-title').textContent=task?'Add a task':'Add an expense';document.querySelector('#save-entry').textContent=task?'Save task':'Save expense';document.querySelector('.expense-fields').classList.toggle('hidden',task);form.querySelectorAll('.task-fields').forEach(field=>field.classList.toggle('hidden',!task));form.querySelectorAll('.expense-fields input').forEach(input=>{input.disabled=task;input.required=input.name==='amount'&&!task;});}
+function setEntryType(type){const task=type==='task',form=document.querySelector('#entry-form'),saveButton=document.querySelector('#save-entry');document.querySelector('#entry-type').value=type;document.querySelector('#modal-title').textContent=task?'Add a task':'Add an expense';saveButton.textContent=task?'Save task':'Save expense';// Tasks save through their explicit API handler; expenses retain the legacy form submit path.
+saveButton.type=task?'button':'submit';document.querySelector('.expense-fields').classList.toggle('hidden',task);form.querySelectorAll('.task-fields').forEach(field=>field.classList.toggle('hidden',!task));form.querySelectorAll('.expense-fields input').forEach(input=>{input.disabled=task;input.required=input.name==='amount'&&!task;});}
 function showExpenseModal(){editingExpenseIndex=null;document.querySelector('#entry-type').disabled=false;setEntryType('expense');document.querySelector('#entry-modal').showModal();}
 function showTaskModal(){editingTaskIndex=null;const form=document.querySelector('#entry-form');document.querySelector('#entry-type').disabled=false;form.reset();setEntryType('task');document.querySelector('#entry-modal').showModal();}
 function editTask(index){const task=tasks[index], form=document.querySelector('#entry-form');editingTaskIndex=index;document.querySelector('#entry-type').disabled=true;setEntryType('task');document.querySelector('#modal-title').textContent='Edit task';document.querySelector('#save-entry').textContent='Save changes';form.elements.description.value=task[0];form.elements.category.value=task[1].toLowerCase().replace(/\b\w/g,letter=>letter.toUpperCase());form.elements.priority.value=task[6]||'Medium';form.elements.assignee.value=task[7]||'Andrea';form.elements.dueDate.value=task[10]||'';form.elements.vendor.value=task[9]||'';form.elements.notes.value=task[8]||'';document.querySelector('#entry-modal').showModal();}
@@ -389,13 +390,16 @@ document.querySelector('#save-entry').addEventListener('click', event => {
   sharedTaskWorkspaceId = workspaceId;
   sharedTasksActive = true;
   if (!form.reportValidity() || form.dataset.taskSaving === 'true') return;
-  const values = new FormData(form);
-  const dueDate = values.get('dueDate');
   const existingTask = editingTaskIndex === null ? null : tasks[editingTaskIndex];
+  // Read the controls directly. Some browsers omit a control from FormData
+  // during a dialog-form transition, which previously crashed task edits.
+  const title = form.elements.description.value.trim();
+  const category = form.elements.category.value || existingTask?.[1] || 'Other';
+  const dueDate = form.elements.dueDate.value || '';
   const task = [
-    values.get('description'), values.get('category').toUpperCase(), dueLabel(dueDate),
+    title, category.toUpperCase(), dueLabel(dueDate),
     existingTask?.[3] || false, existingTask?.[4] || 'todo', existingTask?.[5] || [],
-    values.get('priority'), values.get('assignee'), values.get('notes'), values.get('vendor'), dueDate
+    form.elements.priority.value, form.elements.assignee.value, form.elements.notes.value, form.elements.vendor.value, dueDate
   ];
   const button = event.currentTarget;
   form.dataset.taskSaving = 'true';
