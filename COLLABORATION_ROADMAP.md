@@ -15,7 +15,24 @@ Turn the deployed wedding planner into a shared workspace for Andrea, Nash, and 
 
 ## Important current limitation
 
-Tasks, finances, vendors/quotes, idea boards, honeymoon planning, guests, day-of contacts, rings, and attire now have shared server-backed workflows. Retired browser-local widgets for fully migrated modules are hidden after sign-in so they cannot be mistaken for live data. Owners can preview and append supported text records from an older browser backup; browser-only files, receipts, and idea attachments are intentionally skipped for safe manual re-upload.
+Tasks, finances, vendors/quotes, idea boards, honeymoon planning, guests, day-of contacts, rings, and attire now have shared server-backed workflows. Retired browser-local widgets for fully migrated modules are hidden after sign-in so they cannot be mistaken for live data. Owners can preview and append supported tasks, vendors, expenses, guests, contacts, rings, attire, reservations, itinerary items, and packing items from an older browser backup. The same exact backup is fingerprint-protected from a second import; payments, budget categories, idea boards, and browser-only files/receipts remain intentionally excluded for manual review or re-upload.
+
+## Audit follow-up — July 2026
+
+Completed in the audit fix pass:
+
+- Hide browser-local restore/start-fresh controls whenever a shared workspace is signed in.
+- Allow Viewers to load shared non-finance modules while hiding edit controls; API membership checks remain authoritative.
+- Prevent a second import of the exact same browser backup using an audited SHA-256 fingerprint.
+- State the import scope and exclusions explicitly in both the UI and this roadmap.
+
+Still planned before broader use:
+
+- Per-module permissions instead of role-only access.
+- Removing or fully isolating the remaining legacy local handlers, dialogs, and sample-data code.
+- Import conflict review beyond exact-backup fingerprinting, plus imports for the deliberately excluded record types.
+- Automated integration tests for migrations, roles, imports, and shared CRUD.
+- Off-device backups, restore testing, disk/backup-age monitoring, and a recovery runbook.
 
 ## Collaboration model
 
