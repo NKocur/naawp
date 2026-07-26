@@ -1,8 +1,12 @@
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import path from 'node:path';
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
+import multipart from '@fastify/multipart';
 import { z } from 'zod';
 import { pool, query, withTransaction } from './db.js';
 
@@ -12,9 +16,11 @@ const isProduction = process.env.NODE_ENV === 'production';
 const sessionName = 'ever_after_session';
 const allRoles = ['owner', 'editor', 'contributor', 'viewer'];
 const invitationRoles = ['owner', 'editor', 'contributor', 'viewer'];
+const uploadsDirectory = process.env.UPLOADS_DIRECTORY || '/app/uploads';
 
 await app.register(cookie);
 await app.register(rateLimit, { global: true, max: 200, timeWindow: '1 minute' });
+await app.register(multipart, { limits: { files: 1, fileSize: 20 * 1024 * 1024 } });
 
 function httpError(message, statusCode = 400) {
   const error = new Error(message);
@@ -392,6 +398,41 @@ app.delete('/api/weddings/:weddingId/tasks/:taskId/comments/:commentId', async (
     await client.query('UPDATE task_comments SET archived_at=now(),updated_by=$4,updated_at=now() WHERE id=$1 AND task_id=$2 AND wedding_id=$3',[commentId,taskId,weddingId,user.id]);
     await audit(client,weddingId,user.id,'task_comment',commentId,'archived',{taskId});
   });
+  reply.code(204).send();
+});
+app.get('/api/weddings/:weddingId/tasks/:taskId/attachments', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,taskId}=request.params; await requireMembership(user.id,weddingId,allRoles);
+  const result=await query('SELECT id,original_name,content_type,byte_size,created_at FROM task_attachments WHERE wedding_id=$1 AND task_id=$2 AND archived_at IS NULL ORDER BY created_at',[weddingId,taskId]);
+  return { attachments:result.rows };
+});
+app.post('/api/weddings/:weddingId/tasks/:taskId/attachments', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,taskId}=request.params; await requireMembership(user.id,weddingId,['owner','editor','contributor']);
+  const task=await query('SELECT id FROM tasks WHERE id=$1 AND wedding_id=$2 AND archived_at IS NULL',[taskId,weddingId]);
+  if(!task.rows[0]) throw httpError('Task not found.',404);
+  const file=await request.file(); if(!file) throw httpError('Choose one file to upload.');
+  const buffer=await file.toBuffer();
+  const id=crypto.randomUUID(), originalName=path.basename(file.filename || 'attachment'), storageKey=`${id}-${originalName.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+  await mkdir(uploadsDirectory,{recursive:true}); await writeFile(path.join(uploadsDirectory,storageKey),buffer);
+  const attachment=await withTransaction(async client=>{
+    const result=await client.query(`INSERT INTO task_attachments (id,task_id,wedding_id,original_name,storage_key,content_type,byte_size,checksum_sha256,created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,original_name,content_type,byte_size,created_at`,[id,taskId,weddingId,originalName,storageKey,file.mimetype||'application/octet-stream',buffer.length,crypto.createHash('sha256').update(buffer).digest('hex'),user.id]);
+    await audit(client,weddingId,user.id,'task_attachment',id,'created',{taskId,originalName}); return result.rows[0];
+  });
+  reply.code(201).send({attachment});
+});
+app.get('/api/weddings/:weddingId/tasks/:taskId/attachments/:attachmentId/download', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,taskId,attachmentId}=request.params; await requireMembership(user.id,weddingId,allRoles);
+  const result=await query('SELECT original_name,storage_key,content_type FROM task_attachments WHERE id=$1 AND task_id=$2 AND wedding_id=$3 AND archived_at IS NULL',[attachmentId,taskId,weddingId]);
+  if(!result.rows[0]) throw httpError('Attachment not found.',404); const attachment=result.rows[0];
+  reply.header('Content-Disposition',`inline; filename="${attachment.original_name.replaceAll('"','')}"`).type(attachment.content_type); return reply.send(createReadStream(path.join(uploadsDirectory,attachment.storage_key)));
+});
+app.delete('/api/weddings/:weddingId/tasks/:taskId/attachments/:attachmentId', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,taskId,attachmentId}=request.params; await requireMembership(user.id,weddingId,['owner','editor','contributor']);
+  await withTransaction(async client=>{const result=await client.query('UPDATE task_attachments SET archived_at=now() WHERE id=$1 AND task_id=$2 AND wedding_id=$3 AND archived_at IS NULL RETURNING id',[attachmentId,taskId,weddingId]); if(!result.rows[0]) throw httpError('Attachment not found.',404); await audit(client,weddingId,user.id,'task_attachment',attachmentId,'archived',{taskId});});
   reply.code(204).send();
 });
 app.patch('/api/weddings/:weddingId/tasks/:taskId', async (request, reply) => {
