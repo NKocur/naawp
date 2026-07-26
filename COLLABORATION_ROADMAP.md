@@ -28,6 +28,7 @@ Completed in the audit fix pass:
 - Prevent a second import of the exact same browser backup using an audited SHA-256 fingerprint.
 - State the import scope and exclusions explicitly in both the UI and this roadmap.
 - Route shared task saves around the retired browser-local entry-form handler so task creation reaches the API.
+- Use a direct, guarded shared-task Save button path so the dialog's legacy submit behavior cannot prevent a task request.
 
 Still planned before broader use:
 

@@ -335,6 +335,32 @@ async function saveSharedTask(task, existingTask) {
   else await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks`, { method:'POST', body:JSON.stringify(payload) });
   await loadSharedTasks();
 }
+// `method="dialog"` has legacy submit handling elsewhere in this long-lived demo.
+// Save shared tasks directly from the button so that handling cannot consume the action.
+document.querySelector('#save-entry').addEventListener('click', event => {
+  const form = document.querySelector('#entry-form');
+  if (document.querySelector('#entry-type').value !== 'task' || !sharedTasksActive) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (!form.reportValidity() || form.dataset.taskSaving === 'true') return;
+  const values = new FormData(form);
+  const dueDate = values.get('dueDate');
+  const existingTask = editingTaskIndex === null ? null : tasks[editingTaskIndex];
+  const task = [
+    values.get('description'), values.get('category').toUpperCase(), dueLabel(dueDate),
+    existingTask?.[3] || false, existingTask?.[4] || 'todo', existingTask?.[5] || [],
+    values.get('priority'), values.get('assignee'), values.get('notes'), values.get('vendor'), dueDate
+  ];
+  const button = event.currentTarget;
+  form.dataset.taskSaving = 'true';
+  button.disabled = true;
+  const originalLabel = button.textContent;
+  button.textContent = 'Saving…';
+  saveSharedTask(task, existingTask)
+    .then(() => { editingTaskIndex = null; form.reset(); document.querySelector('#entry-modal').close(); })
+    .catch(error => window.alert(error.message))
+    .finally(() => { delete form.dataset.taskSaving; button.disabled = false; button.textContent = originalLabel; });
+}, true);
 async function updateSharedTask(index, changes) {
   const task = tasks[index]; if (!task?.[11]) return;
   await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}`, { method:'PATCH', body:JSON.stringify(changes) });
