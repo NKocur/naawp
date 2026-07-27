@@ -6,6 +6,70 @@
   margin: 1rem 0 1.5rem;
 }
 
+.finance-record-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+}
+
+.finance-record-panel {
+  min-width: 0;
+  padding: 1.1rem;
+  border: 1px solid #d9e1d8;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.finance-record-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem;
+  padding-bottom: .8rem;
+  border-bottom: 1px solid #e4e9e2;
+}
+
+.finance-record-heading .eyebrow { margin: 0; }
+.finance-record-heading h3 { margin: .2rem 0 0; color: #2c4031; }
+.finance-record-count { color: #69756d; font: 700 .7rem var(--sans); white-space: nowrap; }
+.finance-record-cards { display: grid; gap: .65rem; margin-top: .85rem; }
+
+.finance-record-card.owed-item,
+.finance-record-card.history-item {
+  align-items: start;
+  min-width: 0;
+  padding: .85rem;
+  border: 1px solid #e1e7df;
+  border-radius: 11px;
+  background: #fbfcfa;
+}
+
+.finance-record-card.owed-item { grid-template-columns: 32px minmax(0, 1fr) auto; }
+.finance-record-card.history-item { grid-template-columns: 32px minmax(0, 1fr) auto auto; }
+.finance-record-card strong,
+.finance-record-card small { overflow-wrap: anywhere; }
+.finance-record-card .finance-record-balance { color: #557862; font-weight: 700; }
+.finance-record-card .task-attachments { grid-column: 1 / -1; margin: .1rem 0 0; }
+.finance-record-card .task-actions,
+.finance-record-card .payment-actions { grid-column: 1 / -1; justify-content: flex-end; }
+
+.finance-record-empty {
+  display: grid;
+  gap: .45rem;
+  min-height: 8.5rem;
+  align-content: center;
+  padding: 1rem;
+  border: 1px dashed #cbd7cc;
+  border-radius: 11px;
+  background: #f8faf7;
+  color: #66736b;
+  font-size: .85rem;
+}
+
+.finance-record-empty strong { color: #2c4031; }
+.finance-record-empty button { justify-self: start; margin-top: .25rem; }
+
 .finance-entry-panel {
   padding: 1.1rem;
   border: 1px solid #d9e1d8;
@@ -58,4 +122,7 @@
   .finance-entry-panel { padding: .9rem; }
   .finance-entry-panel .schedule-form { grid-template-columns: 1fr; }
   .finance-entry-panel .schedule-form > * { grid-column: 1; }
+  .finance-record-panels { grid-template-columns: 1fr; }
+  .finance-record-panel { padding: .9rem; }
+  .finance-record-card.history-item { grid-template-columns: 32px minmax(0, 1fr) auto; }
 }

@@ -76,6 +76,8 @@ Make family collaboration safe and understandable.
 
 **Exit condition:** all financial records and supporting documents are shared, exportable, and recoverable.
 
+**Progress:** The shared expense tracker now presents expenses and payments as separate responsive card panels, with quotes, receipts, balances, and record actions kept with the relevant item.
+
 ## Priority 5 — Reliability, quality, and usability
 
 1. Add automated API/integration tests for authentication, role checks, migrations, imports, and critical CRUD flows.
