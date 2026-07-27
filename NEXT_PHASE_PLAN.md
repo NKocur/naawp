@@ -78,6 +78,8 @@ Make family collaboration safe and understandable.
 
 **Progress:** The shared expense tracker presents expenses and payments as separate responsive card panels, with quotes, receipts, balances, and record actions kept with the relevant item. Add/edit expense and payment forms open as focused dialogs from those panels.
 
+**Progress:** Vendor cards now group vendor details, quotes, files, and quote actions together; the standalone quote area is now only used to add or edit an offer.
+
 ## Priority 5 — Reliability, quality, and usability
 
 1. Add automated API/integration tests for authentication, role checks, migrations, imports, and critical CRUD flows.
