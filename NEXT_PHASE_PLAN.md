@@ -76,7 +76,7 @@ Make family collaboration safe and understandable.
 
 **Exit condition:** all financial records and supporting documents are shared, exportable, and recoverable.
 
-**Progress:** The shared expense tracker now presents expenses and payments as separate responsive card panels, with quotes, receipts, balances, and record actions kept with the relevant item.
+**Progress:** The shared expense tracker presents expenses and payments as separate responsive card panels, with quotes, receipts, balances, and record actions kept with the relevant item. Add/edit expense and payment forms open as focused dialogs from those panels.
 
 ## Priority 5 — Reliability, quality, and usability
 

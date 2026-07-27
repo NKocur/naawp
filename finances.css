@@ -30,6 +30,16 @@
   border-bottom: 1px solid #e4e9e2;
 }
 
+.finance-record-heading > div:last-child {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: .45rem;
+}
+
+.finance-record-heading .secondary-button { padding: .48rem .65rem; white-space: nowrap; }
+
 .finance-record-heading .eyebrow { margin: 0; }
 .finance-record-heading h3 { margin: .2rem 0 0; color: #2c4031; }
 .finance-record-count { color: #69756d; font: 700 .7rem var(--sans); white-space: nowrap; }
@@ -69,6 +79,22 @@
 
 .finance-record-empty strong { color: #2c4031; }
 .finance-record-empty button { justify-self: start; margin-top: .25rem; }
+
+.finance-record-dialog .schedule-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.finance-record-dialog .schedule-form > * { min-width: 0; margin: 0; }
+.finance-record-dialog .schedule-form .eyebrow,
+.finance-record-dialog .schedule-form h2,
+.finance-record-dialog #shared-expense-form input[name="name"],
+.finance-record-dialog #shared-payment-form select[name="expenseId"],
+.finance-record-dialog .schedule-form button.secondary-button { grid-column: 1 / -1; }
+.finance-record-dialog .schedule-form input,
+.finance-record-dialog .schedule-form select { box-sizing: border-box; }
+.finance-record-dialog .schedule-form button.secondary-button { justify-self: start; }
 
 .finance-entry-panel {
   padding: 1.1rem;
@@ -125,4 +151,6 @@
   .finance-record-panels { grid-template-columns: 1fr; }
   .finance-record-panel { padding: .9rem; }
   .finance-record-card.history-item { grid-template-columns: 32px minmax(0, 1fr) auto; }
+  .finance-record-dialog .schedule-form { grid-template-columns: 1fr; }
+  .finance-record-dialog .schedule-form > * { grid-column: 1; }
 }
