@@ -27,20 +27,41 @@ Manual calendar events are for plans that do not naturally belong to another rec
 
 ### Linked schedule items
 
-The calendar derives these records from their source tables. It must not create a second schedule record for them.
+The calendar derives these records from their source tables. It must not create a second schedule record for them. This inventory covers every current shared planner component and explicitly separates sources that are ready now from sources that need a proper date field first.
 
-| Source | Date used | Calendar behavior | Editing behavior |
+| Planner component | Current shared date field(s) | First calendar treatment | Required follow-up / why it is not automatic yet |
 | --- | --- | --- | --- |
-| Wedding profile | `wedding_date` | Highlight as the wedding day | Opens Wedding Settings for Owners |
-| Tasks | `due_date` | Task item, with task status/priority | Opens the existing task editor |
-| Expenses | `due_date` | Payment/balance due item | Opens the expense editor |
-| Payments | `paid_on` | Historical payment item | Opens the payment editor |
-| Vendor quotes | `expires_on` | Quote-expiry reminder | Opens the quote editor |
-| Honeymoon reservations | reservation date/due date when present | Travel booking or payment date | Opens reservation editor |
-| Honeymoon itinerary | itinerary date | Travel itinerary item | Opens itinerary editor |
-| Attire appointments | `appointment_on` | Appointment item | Opens attire appointment editor |
+| Wedding settings | `weddings.wedding_date` | Include now; highlight as the wedding day. | Opens Wedding Settings for Owners. |
+| Checklist tasks | `tasks.due_date` | Include now as task deadlines, including task status, priority, and assignee metadata. | No item without a due date should be invented on the calendar. |
+| Shared expenses | `expenses.due_date` | Include now as expense/balance due dates. | Show committed/remaining amount, not a duplicate payment event. |
+| Shared payments | `payments.paid_on` | Include now as historical money activity. | Clearly label it **Paid**, never as a future deadline. |
+| Expense quote attachments | Attachment upload timestamp only | Do not create a schedule event from an attachment. | The attachment inherits its expense context; a due date belongs on the expense. |
+| Budget categories and allocations | No date | Do not include automatically. | Categories are grouping/budget records, not dated plans. |
+| Shared vendor records | No shared structured date | Do not include automatically in the first release. | Add `contract_due_on`, `deposit_due_on`, `final_payment_due_on`, and optionally `event_service_on` before linking vendor commitments. Do not parse cancellation terms or notes. |
+| Shared vendor quotes | `vendor_quotes.expires_on` | Include now as quote-expiry reminders. | Opens the quote editor; quote files themselves are not separate events. |
+| Legacy catering quote comparison | No shared date and may be browser-era data | Exclude from the shared schedule. | Retire/migrate it into the shared vendor quote model before considering it a source. |
+| Honeymoon profile | `dates_label` is free text | Do not derive events from it. | Add structured `starts_on` and `ends_on` to represent the trip range; do not parse text such as “October 2026.” |
+| Honeymoon reservations | `travel_reservations.due_date` | Include now as reservation payment deadlines. | Add structured `starts_on`/`ends_on` (and optional departure/arrival times) for flights, stays, transport, and activities. `details` is free text and must not be parsed. |
+| Honeymoon itinerary | `honeymoon_itinerary_items.planned_on` | Include now as travel itinerary items. | Keep this as a date-only item until optional time fields are deliberately added. |
+| Honeymoon packing | No date | Do not include automatically. | Users can create a manual packing reminder or give individual packing items a future due-date feature. |
+| Honeymoon travel documents | No date | Do not include automatically. | Users can add a manual passport/visa/insurance reminder; later add a document expiry/renewal date if useful. |
+| Guest list and RSVPs | No date | Do not include individual guests automatically. | Add a workspace-level RSVP deadline, or optional per-guest response/follow-up date, rather than treating guest creation/update timestamps as events. |
+| Day-of contacts | No date | Do not include automatically. | Contacts are reference information; manual events cover calls, handoffs, and meetings. |
+| Ring checklist | No date | Do not include automatically. | Add an optional due date only if ring tasks should become scheduled deadlines; otherwise use a normal checklist task/manual event. |
+| Attire appointments | `attire_appointments.appointment_on` | Include now as appointments. | Opens the attire appointment editor; location remains display metadata. |
+| Idea boards, attachments, and comments | Created/updated timestamps only | Do not include automatically. | Inspiration activity is not a plan date. Add a manual event or a dated task for a decision deadline. |
+| Collaboration members/invitations | Created/expiry timestamps only | Exclude from the wedding schedule. | These are access-management records, not planning events. |
+| Activity feed/audit history | Recorded timestamps only | Exclude from the schedule. | It is retrospective history, not a future plan. |
+| Browser-only legacy schedules/payment schedules/reservations | May have local dates, but are not authoritative shared records | Exclude from the signed-in schedule. | Migrate them to shared API records first; never mix one browser's local data into the workspace calendar. |
 
-If a source has no valid date, it does not appear on the calendar. Editing or deleting a source record immediately changes its calendar representation after refresh.
+If a source has no valid structured date, it does not appear on the calendar. Editing or deleting a linked source record immediately changes its calendar representation after refresh. The schedule must never infer dates from labels, notes, terms, descriptions, confirmation text, or file names.
+
+### Source coverage rules
+
+1. A single source record may produce one or more normalized schedule items only when it has an explicit shared date field. For example, a future vendor record can expose separate deposit and final-payment dates; those are separate events with the same source record.
+2. A source-owned item is edited in its original feature. The schedule uses **Open task**, **Open expense**, **Open reservation**, and similar actions rather than duplicated editors.
+3. Manual events cover all date-based plans that have no natural source record yet: venue walk-throughs, tastings, RSVP reminders, calls, family meetings, vendor deadlines, airport transfers, and day-of logistics.
+4. Created-at, updated-at, upload-at, and activity timestamps are audit metadata. They are never planning dates.
 
 ### Manual events
 
@@ -197,10 +218,23 @@ The response must include only records belonging to the requested wedding worksp
 ### Phase 2 — Linked schedule feed
 
 1. Create the normalized combined `/schedule` endpoint.
-2. Add task due dates, expense due dates, payments, quotes, wedding date, itinerary, reservations, and attire appointments in order.
+2. Add the already-ready sources in this order: wedding date, task due dates, expense due dates, payments, vendor quote expirations, reservation due dates, honeymoon itinerary items, and attire appointments.
 3. Add an explicit `kind`, `linked`, `sourceId`, and source metadata for every item.
 4. Add source-open behavior that routes the user to the proper tab/record.
 5. Confirm updates to a source record appear on the next schedule refresh without duplicate records.
+6. Keep budget categories, files, guests, contacts, ring checklist items, packing, documents, ideas, collaboration records, activity, and all browser-only records out of this feed unless a future migration adds an explicit planning date.
+
+### Phase 2A — Structured-date upgrades
+
+These upgrades are deliberately separate from the initial linked feed. They prevent the calendar from relying on ambiguous free-text fields.
+
+1. Add honeymoon `starts_on` and `ends_on`, then render the trip as a multi-day linked travel item.
+2. Add reservation `starts_on` and `ends_on`, plus optional local departure/arrival times where applicable; retain `due_date` as a separate payment deadline.
+3. Add structured vendor dates for contract, deposit, final payment, and optional service day. Show each populated date as a distinct vendor-linked item.
+4. Add a workspace RSVP deadline, with an optional later per-guest follow-up date if that becomes useful.
+5. Decide whether ring checklist and packing items need an optional due date or should remain checklist-only; do not add dates merely to populate the calendar.
+6. Add optional document expiry/renewal dates only if they are intended to become reminders.
+7. Migrate or retire browser-only schedule/payment/reservation data before it can appear in any shared schedule response.
 
 ### Phase 2 verification
 
@@ -209,6 +243,8 @@ The response must include only records belonging to the requested wedding worksp
 3. Delete a linked record; its schedule item disappears.
 4. Payment history shows the paid date without being mislabeled as a future due date.
 5. Events from a second test workspace never appear in the active workspace.
+6. Free-text fields such as honeymoon dates, reservation details, and vendor terms never generate a schedule item.
+7. A vendor with a note mentioning a date has no calendar item until the corresponding structured date field is saved.
 
 ### Phase 3 — Month calendar and filters
 
