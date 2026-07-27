@@ -14,7 +14,13 @@
       const fallback = response.status === 413
         ? 'That file is too large. Attachments can be up to 50 MB.'
         : `The server could not complete that request (HTTP ${response.status}).`;
-      throw new Error(body?.error || fallback);
+      const issue = body?.details?.[0];
+      const field = issue?.path?.[0];
+      const fieldLabel = field ? String(field).replace(/([A-Z])/g, ' $1').replace(/^./, character => character.toUpperCase()) : null;
+      const validationMessage = body?.error === 'Invalid request.' && fieldLabel
+        ? `${fieldLabel}: ${issue.message || 'has an invalid value.'}`
+        : null;
+      throw new Error(validationMessage || body?.error || fallback);
     }
     return body;
   };

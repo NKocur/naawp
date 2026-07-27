@@ -370,8 +370,10 @@ async function loadSharedTasks() {
   loadSharedActivity().catch(error=>console.error('Could not refresh shared activity',error));
 }
 async function saveSharedTask(task, existingTask) {
-  const assigneeUserId = taskAssignees.find(member => member.id === task[7] || member.name === task[7])?.id || existingTask?.[14] || null;
-  const payload = { title:task[0], category:task[1], priority:task[6] || 'Medium', assigneeUserId, notes:task[8] || null, linkedVendor:task[9] || null, dueDate:task[10] || null, status:task[4] || 'todo' };
+  const selectedAssignee = taskAssignees.find(member => member.id === task[7] || member.name === task[7]);
+  const payload = { title:task[0], category:task[1], priority:task[6] || 'Medium', notes:task[8] || null, linkedVendor:task[9] || null, dueDate:task[10] || null, status:task[4] || 'todo' };
+  if (selectedAssignee) payload.assigneeUserId = selectedAssignee.id;
+  else if (task[7] === 'Unassigned') payload.assigneeUserId = null;
   if (existingTask?.[11]) await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${existingTask[11]}`, { method:'PATCH', body:JSON.stringify(payload) });
   else await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks`, { method:'POST', body:JSON.stringify(payload) });
   await loadSharedTasks();
