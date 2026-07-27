@@ -332,6 +332,10 @@ These upgrades are deliberately separate from the initial linked feed. They prev
 - Added an in-place refresh state to the Schedule tab.
 - A failed refresh preserves the most recently loaded Schedule items and explains what happened instead of replacing the agenda with an empty state.
 
+### Corrected — Month view grouping initialization (July 2026)
+
+- Fixed the Month renderer so it initializes its day-grouping map before rendering calendar cells.
+
 ### Completed — date rules and repeatable browser verification (July 2026)
 
 - Documented the shared date/time-zone rules in `BACKEND_SETUP.md`.
