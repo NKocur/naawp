@@ -66,11 +66,16 @@ async function verifyPassword(password, stored) {
 function setSession(reply, token) {
   reply.setCookie(sessionName, token, { httpOnly: true, secure: isProduction, sameSite: 'strict', path: '/', maxAge: 60 * 60 * 24 * 14 });
 }
-function clearSession(reply) { reply.clearCookie(sessionName, { path: '/' }); }
+function clearSession(reply) { reply.clearCookie(sessionName, { secure: isProduction, sameSite: 'strict', path: '/' }); }
 async function createSession(userId) {
   const token = crypto.randomBytes(32).toString('base64url');
   await query("INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '14 days')", [userId, hashToken(token)]);
   return token;
+}
+async function rotateSession(request, userId) {
+  const priorToken = request.cookies[sessionName];
+  if (priorToken) await query('DELETE FROM sessions WHERE token_hash=$1', [hashToken(priorToken)]);
+  return createSession(userId);
 }
 async function currentUser(request) {
   const token = request.cookies[sessionName];
@@ -184,7 +189,7 @@ app.post('/api/auth/register', { config: { rateLimit: { max: 10, timeWindow: '1 
     await audit(client, wedding.rows[0].id, userRecord.id, 'wedding', wedding.rows[0].id, 'created');
     return { user: userRecord, wedding: wedding.rows[0], invited: false };
   });
-  const token = await createSession(result.user.id);
+  const token = await rotateSession(request, result.user.id);
   setSession(reply, token);
   reply.code(201).send(result);
 });
@@ -194,7 +199,7 @@ app.post('/api/auth/login', { config: { rateLimit: { max: 10, timeWindow: '15 mi
   const result = await query('SELECT id,email,display_name,password_hash FROM users WHERE email=$1', [normalizeEmail(body.email)]);
   const user = result.rows[0];
   if (!user || !(await verifyPassword(body.password, user.password_hash))) return reply.code(401).send({ error: 'Invalid email or password.' });
-  const token = await createSession(user.id);
+  const token = await rotateSession(request, user.id);
   setSession(reply, token);
   reply.send({ user: { id: user.id, email: user.email, display_name: user.display_name } });
 });
@@ -661,6 +666,7 @@ app.delete('/api/weddings/:weddingId/members/:memberId', async (request, reply) 
       if (owners.rows[0].count <= 1) throw httpError('A wedding workspace must always have at least one owner.', 409);
     }
     await client.query('DELETE FROM memberships WHERE wedding_id=$1 AND user_id=$2', [weddingId, memberId]);
+    await client.query('DELETE FROM sessions WHERE user_id=$1', [memberId]);
     await audit(client, weddingId, user.id, 'membership', memberId, 'removed');
   });
   reply.code(204).send();

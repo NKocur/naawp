@@ -15,8 +15,9 @@ This plan turns the July 2026 production audit into a safe sequence of fixes. It
 ## External review follow-up — July 2026
 
 - Source review confirmed that wedding-scoped routes require an authenticated user and workspace membership; the workspace UUID is an identifier, not authorization.
+- A route-level scan reviewed 107 wedding-scoped handlers. The only collection route without `requireMembership` is `/api/weddings`, which is filtered by the authenticated user’s membership in SQL.
 - `/api/auth/setup` is a read-only status endpoint. Initial workspace registration is server-closed once a wedding exists; a database advisory lock now prevents concurrent first-registration races.
-- Production sessions use a host-bound `__Host-` cookie, unsafe API methods reject cross-site browser requests, and the general member endpoint no longer exposes member email addresses.
+- Production sessions use a host-bound `__Host-` cookie, login replaces any prior browser session, removed members have all sessions revoked, unsafe API methods reject cross-site browser requests, and the general member endpoint no longer exposes member email addresses.
 - Cloudflare Tunnel, router forwarding/IPv6 exposure, and Cloudflare Access remain deployment settings to verify on the Pi and in Cloudflare; they cannot be proven from the repository alone.
 
 ## Phase 0 — Establish a safe baseline
