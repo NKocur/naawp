@@ -12,6 +12,13 @@ This plan turns the July 2026 production audit into a safe sequence of fixes. It
 - Keep all application changes on GitHub before pulling them to the Pi.
 - If a deployment health check briefly reports a connection reset, wait a few seconds and confirm `curl http://127.0.0.1:8080/api/health` returns `{"ok":true}`.
 
+## External review follow-up — July 2026
+
+- Source review confirmed that wedding-scoped routes require an authenticated user and workspace membership; the workspace UUID is an identifier, not authorization.
+- `/api/auth/setup` is a read-only status endpoint. Initial workspace registration is server-closed once a wedding exists; a database advisory lock now prevents concurrent first-registration races.
+- Production sessions use a host-bound `__Host-` cookie, unsafe API methods reject cross-site browser requests, and the general member endpoint no longer exposes member email addresses.
+- Cloudflare Tunnel, router forwarding/IPv6 exposure, and Cloudflare Access remain deployment settings to verify on the Pi and in Cloudflare; they cannot be proven from the repository alone.
+
 ## Phase 0 — Establish a safe baseline
 
 ### Goal

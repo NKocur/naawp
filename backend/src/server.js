@@ -13,14 +13,36 @@ import { pool, query, withTransaction } from './db.js';
 const scrypt = promisify(crypto.scrypt);
 const app = Fastify({ logger: true, trustProxy: true });
 const isProduction = process.env.NODE_ENV === 'production';
-const sessionName = 'ever_after_session';
+// The __Host- prefix asks browsers to enforce a host-only, Secure, root-path
+// cookie in production. Keep the local-development name unprefixed so HTTP
+// localhost development continues to work.
+const sessionName = isProduction ? '__Host-ever_after_session' : 'ever_after_session';
 const allRoles = ['owner', 'editor', 'contributor', 'viewer'];
 const invitationRoles = ['owner', 'editor', 'contributor', 'viewer'];
 const uploadsDirectory = process.env.UPLOADS_DIRECTORY || '/app/uploads';
+const unsafeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 await app.register(cookie);
 await app.register(rateLimit, { global: true, max: 200, timeWindow: '1 minute' });
 await app.register(multipart, { limits: { files: 1, fileSize: 50 * 1024 * 1024 } });
+app.addHook('onRequest', async (request, reply) => {
+  if (!request.url.startsWith('/api/') || !unsafeMethods.has(request.method)) return;
+  // SameSite=Strict is already the primary browser CSRF barrier. These checks
+  // add defense in depth for modern browsers without requiring a token in each
+  // JSON request. Command-line/API clients without an Origin header still work.
+  if (request.headers['sec-fetch-site'] === 'cross-site') {
+    return reply.code(403).send({ error: 'Cross-site write requests are not allowed.' });
+  }
+  const origin = request.headers.origin;
+  if (!origin) return;
+  try {
+    if (new URL(origin).host.toLowerCase() !== String(request.headers.host || '').toLowerCase()) {
+      return reply.code(403).send({ error: 'Cross-site write requests are not allowed.' });
+    }
+  } catch {
+    return reply.code(403).send({ error: 'Cross-site write requests are not allowed.' });
+  }
+});
 
 function httpError(message, statusCode = 400) {
   const error = new Error(message);
@@ -135,6 +157,9 @@ app.post('/api/auth/register', { config: { rateLimit: { max: 10, timeWindow: '1 
   const email = normalizeEmail(body.email);
   const result = await withTransaction(async client => {
     if (!body.invitationToken) {
+      // Serialize the one-time initial-workspace check so two simultaneous
+      // registrations cannot both create an owner workspace.
+      await client.query('SELECT pg_advisory_xact_lock(81420731)');
       const existingWorkspace = await client.query('SELECT EXISTS(SELECT 1 FROM weddings) AS workspace_exists');
       if (existingWorkspace.rows[0].workspace_exists) throw httpError('Workspace registration is closed. Ask an owner for an invitation.', 403);
     }
@@ -237,7 +262,7 @@ app.get('/api/weddings/:weddingId/members', async (request, reply) => {
   const user = await requireUser(request, reply); if (!user) return;
   const { weddingId } = request.params;
   await requireMembership(user.id, weddingId, allRoles);
-  const members = await query(`SELECT u.id,u.email,u.display_name,m.role
+  const members = await query(`SELECT u.id,u.display_name,m.role
     FROM memberships m JOIN users u ON u.id=m.user_id
     WHERE m.wedding_id=$1 ORDER BY u.display_name,u.email`, [weddingId]);
   return { members: members.rows };
