@@ -188,21 +188,21 @@ app.post('/api/invitations/accept', async (request, reply) => {
 
 app.get('/api/weddings', async (request, reply) => {
   const user = await requireUser(request, reply); if (!user) return;
-  const result = await query(`SELECT w.id,w.name,w.wedding_date,w.location,m.role
+  const result = await query(`SELECT w.id,w.name,w.wedding_date,w.location,w.budget_total,m.role
     FROM weddings w JOIN memberships m ON m.wedding_id=w.id WHERE m.user_id=$1 ORDER BY w.created_at`, [user.id]);
   return { weddings: result.rows };
 });
 app.patch('/api/weddings/:weddingId', async (request, reply) => {
   const user = await ownerUser(request, reply); if (!user) return;
   const { weddingId } = request.params;
-  const body = z.object({ name:z.string().trim().min(1).max(160).optional(), weddingDate:z.string().date().nullable().optional(), location:z.string().trim().max(160).nullable().optional() }).parse(request.body);
-  const fields = { name:body.name, wedding_date:body.weddingDate, location:body.location };
+  const body = z.object({ name:z.string().trim().min(1).max(160).optional(), weddingDate:z.string().date().nullable().optional(), location:z.string().trim().max(160).nullable().optional(), budgetTotal:z.number().nonnegative().optional() }).parse(request.body);
+  const fields = { name:body.name, wedding_date:body.weddingDate, location:body.location, budget_total:body.budgetTotal };
   const entries = Object.entries(fields).filter(([,value]) => value !== undefined);
   if (!entries.length) return reply.code(400).send({ error:'No changes supplied.' });
   const wedding = await withTransaction(async client => {
     const values=[weddingId];
     const sets=entries.map(([column,value],index)=>{values.push(value);return `${column}=$${index+2}`;});
-    const result=await client.query(`UPDATE weddings SET ${sets.join(',')},updated_at=now() WHERE id=$1 RETURNING id,name,wedding_date,location`,values);
+    const result=await client.query(`UPDATE weddings SET ${sets.join(',')},updated_at=now() WHERE id=$1 RETURNING id,name,wedding_date,location,budget_total`,values);
     if (!result.rows[0]) throw httpError('Wedding workspace not found.',404);
     await audit(client,weddingId,user.id,'wedding',weddingId,'updated',{fields:entries.map(([column])=>column)});
     return result.rows[0];
@@ -243,7 +243,7 @@ app.get('/api/weddings/:weddingId/finance/summary', async (request, reply) => {
   const user=await requireUser(request,reply); if(!user)return;
   const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
   const [budget,expenses,payments,reimbursements]=await Promise.all([
-    query(`SELECT COALESCE(SUM(planned_amount),0)::numeric AS planned FROM budget_categories WHERE wedding_id=$1 AND archived_at IS NULL`,[weddingId]),
+    query(`SELECT w.budget_total,COALESCE(SUM(b.planned_amount),0)::numeric AS planned FROM weddings w LEFT JOIN budget_categories b ON b.wedding_id=w.id AND b.archived_at IS NULL WHERE w.id=$1 GROUP BY w.id,w.budget_total`,[weddingId]),
     query(`SELECT COALESCE(SUM(committed),0)::numeric AS committed,
       COALESCE(SUM(CASE WHEN stage='estimated' THEN committed ELSE 0 END),0)::numeric AS estimated
       FROM expenses WHERE wedding_id=$1 AND archived_at IS NULL AND stage NOT IN ('cancelled','refunded')`,[weddingId]),
@@ -251,8 +251,8 @@ app.get('/api/weddings/:weddingId/finance/summary', async (request, reply) => {
     query(`SELECT COALESCE(SUM(s.amount) FILTER (WHERE s.settled_at IS NULL),0)::numeric AS reimbursement_owed
       FROM payment_splits s JOIN payments p ON p.id=s.payment_id WHERE p.wedding_id=$1 AND p.archived_at IS NULL`,[weddingId])
   ]);
-  const planned=Number(budget.rows[0].planned),committed=Number(expenses.rows[0].committed),paid=Number(payments.rows[0].paid);
-  return { summary:{planned,estimated:Number(expenses.rows[0].estimated),committed,paid,stillOwed:Math.max(0,committed-paid),remainingBudget:planned-committed,reimbursementOwed:Number(reimbursements.rows[0].reimbursement_owed)} };
+  const planned=Number(budget.rows[0].planned),budgetTotal=Number(budget.rows[0].budget_total),committed=Number(expenses.rows[0].committed),paid=Number(payments.rows[0].paid);
+  return { summary:{budgetTotal,planned,estimated:Number(expenses.rows[0].estimated),committed,paid,stillOwed:Math.max(0,committed-paid),remainingBudget:budgetTotal-committed,reimbursementOwed:Number(reimbursements.rows[0].reimbursement_owed)} };
 });
 app.get('/api/weddings/:weddingId/budget-categories', async (request, reply) => {
   const user=await requireUser(request,reply); if(!user)return;
