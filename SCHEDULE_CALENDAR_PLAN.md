@@ -240,6 +240,12 @@ Build the Month view, then add the future structured date fields described in Ph
 - Added those dates to the vendor form and edit flow rather than deriving anything from contract notes.
 - Added each saved milestone as a separate linked Schedule item, categorized as vendor work or money where appropriate.
 
+### Completed — workspace RSVP deadline (July 2026)
+
+- Added an optional RSVP deadline to shared Wedding Settings.
+- Saved it on the workspace itself, so it is shared by all members and survives deployments.
+- Added it to the linked Schedule feed as a clearly labeled RSVP deadline item.
+
 ### Phase 1 — Shared manual event foundation
 
 1. Add an `events` migration with indexes for `wedding_id`, active state, and date range lookups.

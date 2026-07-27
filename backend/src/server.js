@@ -188,21 +188,21 @@ app.post('/api/invitations/accept', async (request, reply) => {
 
 app.get('/api/weddings', async (request, reply) => {
   const user = await requireUser(request, reply); if (!user) return;
-  const result = await query(`SELECT w.id,w.name,w.wedding_date,w.location,w.budget_total,m.role
+  const result = await query(`SELECT w.id,w.name,w.wedding_date,w.rsvp_deadline,w.location,w.budget_total,m.role
     FROM weddings w JOIN memberships m ON m.wedding_id=w.id WHERE m.user_id=$1 ORDER BY w.created_at`, [user.id]);
   return { weddings: result.rows };
 });
 app.patch('/api/weddings/:weddingId', async (request, reply) => {
   const user = await ownerUser(request, reply); if (!user) return;
   const { weddingId } = request.params;
-  const body = z.object({ name:z.string().trim().min(1).max(160).optional(), weddingDate:z.string().date().nullable().optional(), location:z.string().trim().max(160).nullable().optional(), budgetTotal:z.number().nonnegative().optional() }).parse(request.body);
-  const fields = { name:body.name, wedding_date:body.weddingDate, location:body.location, budget_total:body.budgetTotal };
+  const body = z.object({ name:z.string().trim().min(1).max(160).optional(), weddingDate:z.string().date().nullable().optional(), rsvpDeadline:z.string().date().nullable().optional(), location:z.string().trim().max(160).nullable().optional(), budgetTotal:z.number().nonnegative().optional() }).parse(request.body);
+  const fields = { name:body.name, wedding_date:body.weddingDate, rsvp_deadline:body.rsvpDeadline, location:body.location, budget_total:body.budgetTotal };
   const entries = Object.entries(fields).filter(([,value]) => value !== undefined);
   if (!entries.length) return reply.code(400).send({ error:'No changes supplied.' });
   const wedding = await withTransaction(async client => {
     const values=[weddingId];
     const sets=entries.map(([column,value],index)=>{values.push(value);return `${column}=$${index+2}`;});
-    const result=await client.query(`UPDATE weddings SET ${sets.join(',')},updated_at=now() WHERE id=$1 RETURNING id,name,wedding_date,location,budget_total`,values);
+    const result=await client.query(`UPDATE weddings SET ${sets.join(',')},updated_at=now() WHERE id=$1 RETURNING id,name,wedding_date,rsvp_deadline,location,budget_total`,values);
     if (!result.rows[0]) throw httpError('Wedding workspace not found.',404);
     await audit(client,weddingId,user.id,'wedding',weddingId,'updated',{fields:entries.map(([column])=>column)});
     return result.rows[0];
@@ -886,7 +886,7 @@ app.get('/api/weddings/:weddingId/schedule',async(request,reply)=>{
   if(range.to<range.from)throw httpError('The schedule range is invalid.');
   const [manual,wedding,honeymoonProfile,tasks,expenses,payments,vendorMilestones,quotes,reservations,itinerary,appointments]=await Promise.all([
     query(`SELECT id,title,event_type,starts_on,ends_on,starts_at,ends_at,location,notes FROM schedule_events WHERE wedding_id=$1 AND archived_at IS NULL AND starts_on <= $3 AND COALESCE(ends_on,starts_on) >= $2 ORDER BY starts_on,starts_at NULLS LAST,created_at`,[weddingId,range.from,range.to]),
-    query('SELECT id,name,wedding_date,location FROM weddings WHERE id=$1 AND wedding_date BETWEEN $2 AND $3',[weddingId,range.from,range.to]),
+    query('SELECT id,name,wedding_date,rsvp_deadline,location FROM weddings WHERE id=$1 AND (wedding_date BETWEEN $2 AND $3 OR rsvp_deadline BETWEEN $2 AND $3)',[weddingId,range.from,range.to]),
     query('SELECT wedding_id,destination,starts_on,ends_on FROM honeymoon_profiles WHERE wedding_id=$1 AND starts_on <= $3 AND COALESCE(ends_on,starts_on) >= $2',[weddingId,range.from,range.to]),
     query('SELECT id,title,category,priority,status,due_date FROM tasks WHERE wedding_id=$1 AND archived_at IS NULL AND due_date BETWEEN $2 AND $3',[weddingId,range.from,range.to]),
     query('SELECT id,name,category,committed,stage,due_date FROM expenses WHERE wedding_id=$1 AND archived_at IS NULL AND due_date BETWEEN $2 AND $3',[weddingId,range.from,range.to]),
@@ -899,7 +899,7 @@ app.get('/api/weddings/:weddingId/schedule',async(request,reply)=>{
   ]);
   const items=[
     ...manual.rows.map(row=>({id:`manual:${row.id}`,kind:'manual',category:'manual',sourceId:row.id,title:row.title,startsOn:row.starts_on,endsOn:row.ends_on,startsAt:row.starts_at,endsAt:row.ends_at,location:row.location,notes:row.notes,eventType:row.event_type,linked:false})),
-    ...wedding.rows.map(row=>({id:`wedding:${row.id}`,kind:'wedding',category:'ceremony',sourceId:row.id,title:row.name,startsOn:row.wedding_date,location:row.location,linked:true})),
+    ...wedding.rows.flatMap(row=>[...(row.wedding_date?[{id:`wedding:${row.id}`,kind:'wedding',category:'ceremony',sourceId:row.id,title:row.name,startsOn:row.wedding_date,location:row.location,linked:true}]:[]),...(row.rsvp_deadline?[{id:`rsvp:${row.id}`,kind:'rsvp',category:'manual',sourceId:row.id,title:'RSVP deadline',startsOn:row.rsvp_deadline,notes:row.name,linked:true}]:[])]),
     ...honeymoonProfile.rows.map(row=>({id:`honeymoon:${row.wedding_id}`,kind:'honeymoon',category:'travel',sourceId:row.wedding_id,title:row.destination||'Honeymoon trip',startsOn:row.starts_on,endsOn:row.ends_on,linked:true})),
     ...tasks.rows.map(row=>({id:`task:${row.id}`,kind:'task',category:'task',sourceId:row.id,title:row.title,startsOn:row.due_date,status:row.status,priority:row.priority,notes:row.category,linked:true})),
     ...expenses.rows.map(row=>({id:`expense:${row.id}`,kind:'expense',category:'money',sourceId:row.id,title:row.name,startsOn:row.due_date,status:row.stage,amount:Number(row.committed),notes:row.category,linked:true})),

@@ -52,7 +52,7 @@ let expenses = JSON.parse(localStorage.getItem('everAfterExpenses') || 'null') |
 expenses = expenses.map(item => ({ ...item, paidBy: ({ 'Jamie & Lee': 'Andrea & Nash', Jamie: 'Andrea', Lee: 'Nash' })[item.paidBy] || item.paidBy }));
 localStorage.setItem('everAfterExpenses', JSON.stringify(expenses));
 let weddingSettings = JSON.parse(localStorage.getItem('everAfterWeddingSettings') || 'null') || { budget: 0 };
-let weddingProfile = JSON.parse(localStorage.getItem('everAfterWeddingProfile') || 'null') || { names: 'Our wedding', date: '', location: '' };
+let weddingProfile = JSON.parse(localStorage.getItem('everAfterWeddingProfile') || 'null') || { names: 'Our wedding', date: '', rsvpDeadline: '', location: '' };
 // PostgreSQL DATE values can arrive as either YYYY-MM-DD or an ISO timestamp.
 // The date input and countdown both require the calendar-day form.
 const normalizeWeddingDate = value => {
@@ -60,6 +60,7 @@ const normalizeWeddingDate = value => {
   return match ? match[1] : '';
 };
 weddingProfile.date = normalizeWeddingDate(weddingProfile.date);
+weddingProfile.rsvpDeadline = normalizeWeddingDate(weddingProfile.rsvpDeadline);
 let tasks = JSON.parse(localStorage.getItem('everAfterTasks') || 'null') || [];
 let sharedTasksActive = false;
 let sharedTaskWorkspaceId = null;
@@ -141,6 +142,7 @@ function applySharedWeddingProfile(workspace) {
   weddingProfile={
     names:workspace.name || 'Our wedding',
     date:normalizeWeddingDate(workspace.wedding_date),
+    rsvpDeadline:normalizeWeddingDate(workspace.rsvp_deadline),
     location:workspace.location || ''
   };
   localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile));
@@ -330,10 +332,10 @@ document.querySelector('#add-guest').onclick=openGuestModal;document.querySelect
 document.querySelector('#guest-form').addEventListener('submit',event=>{event.preventDefault();const form=new FormData(event.target),guest={name:form.get('name'),group:form.get('group'),party:Number(form.get('party'))||1,rsvp:form.get('rsvp'),notes:form.get('notes')},wasEditing=editingGuestIndex!==null;if(editingGuestIndex!==null)guests[editingGuestIndex]=guest;else guests.push(guest);localStorage.setItem('everAfterGuests',JSON.stringify(guests));renderGuests();logActivity(`${wasEditing?'Edited':'Added'} guest ${guest.name}`);editingGuestIndex=null;event.target.reset();document.querySelector('#guest-modal').close();});
 document.querySelector('#contact-form').addEventListener('submit',event=>{event.preventDefault();const form=new FormData(event.target),name=form.get('name'),person={name,role:form.get('role'),contact:form.get('contact'),initials:name.split(/\s+/).map(word=>word[0]).join('').slice(0,2),tone:'sage'},wasEditing=editingContactIndex!==null;if(wasEditing){person.tone=contacts[editingContactIndex].tone||'sage';contacts[editingContactIndex]=person;}else contacts.push(person);localStorage.setItem('everAfterContacts',JSON.stringify(contacts));renderContacts();logActivity(`${wasEditing?'Edited':'Added'} day-of contact ${person.name}`);editingContactIndex=null;event.target.reset();document.querySelector('#contact-modal').close();});
 const backupKeys=['everAfterWeddingSettings','everAfterWeddingProfile','everAfterExpenses','everAfterPayments','everAfterPaymentSchedules','everAfterReimbursements','everAfterArchivedRecords','everAfterTasks','everAfterVendors','everAfterQuotes','everAfterReservations','everAfterIdeaBoards','everAfterRingItems','everAfterAttireAppointments','everAfterItineraryItems','everAfterHoneymoon','everAfterPackingItems','everAfterTravelDocuments','everAfterGuests','everAfterContacts','everAfterActivity'];
-document.querySelector('#open-settings').onclick=()=>{const form=document.querySelector('#settings-form');form.elements.names.value=weddingProfile.names;form.elements.date.value=weddingProfile.date;form.elements.location.value=weddingProfile.location;renderArchiveManager();document.querySelector('#settings-modal').showModal();};
+document.querySelector('#open-settings').onclick=()=>{const form=document.querySelector('#settings-form');form.elements.names.value=weddingProfile.names;form.elements.date.value=weddingProfile.date;form.elements.rsvpDeadline.value=weddingProfile.rsvpDeadline||'';form.elements.location.value=weddingProfile.location;renderArchiveManager();document.querySelector('#settings-modal').showModal();};
 document.querySelector('#open-profile').onclick=()=>document.querySelector('#open-settings').click();
 document.querySelector('#open-notifications').onclick=()=>{const recent=activity.slice(0,5).map(item=>`• ${item.text}`).join('\n')||'No recent changes.';window.alert(`Recent activity\n\n${recent}`);};
-document.querySelector('#settings-form').addEventListener('submit',event=>{event.preventDefault();const form=new FormData(event.target);weddingProfile={names:form.get('names'),date:form.get('date'),location:form.get('location')};localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile));renderWeddingProfile();logActivity('Updated wedding details');document.querySelector('#settings-modal').close();});
+document.querySelector('#settings-form').addEventListener('submit',event=>{event.preventDefault();const form=new FormData(event.target);weddingProfile={names:form.get('names'),date:form.get('date'),rsvpDeadline:form.get('rsvpDeadline')||'',location:form.get('location')};localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile));renderWeddingProfile();logActivity('Updated wedding details');document.querySelector('#settings-modal').close();});
 document.querySelector('#export-backup').onclick=()=>{const backup={version:1,createdAt:new Date().toISOString(),data:Object.fromEntries(backupKeys.map(key=>[key,JSON.parse(localStorage.getItem(key)||'null')]))};const url=URL.createObjectURL(new Blob([JSON.stringify(backup,null,2)],{type:'application/json'})),link=document.createElement('a');link.href=url;link.download='andrea-nash-wedding-planner-backup.json';link.click();URL.revokeObjectURL(url);};
 document.querySelector('#import-backup').onchange=event=>{const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const backup=JSON.parse(reader.result);if(!backup.data || !window.confirm('Restore this backup and replace current demo data?'))return;backupKeys.forEach(key=>{if(key in backup.data)localStorage.setItem(key,JSON.stringify(backup.data[key]));});location.reload();}catch{window.alert('That file is not a valid wedding planner backup.');}};reader.readAsText(file);};
 document.querySelector('#clear-local-planner').onclick=()=>{if(!window.confirm('Start with a blank planner? This removes all browser-local planning entries on this device. Download a backup first if you want to keep anything.'))return;backupKeys.forEach(key=>localStorage.removeItem(key));localStorage.removeItem('everAfterWorkspaceId');location.reload();};
@@ -508,14 +510,14 @@ async function saveWeddingSettings() {
   if(!form.reportValidity())return;
   const values=new FormData(form);
   if(!sharedTaskWorkspaceId){
-    weddingProfile={names:values.get('names'),date:values.get('date'),location:values.get('location')};
+    weddingProfile={names:values.get('names'),date:values.get('date'),rsvpDeadline:values.get('rsvpDeadline')||'',location:values.get('location')};
     localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile));renderWeddingProfile();document.querySelector('#settings-modal').close();return;
   }
   if(window.everAfterWorkspaceRole!=='owner')return window.alert('Only an Owner can change shared wedding settings.');
   button.disabled=true;const originalLabel=button.textContent;button.textContent='Saving…';
   try {
-    const result=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}`,{method:'PATCH',body:JSON.stringify({name:values.get('names'),weddingDate:values.get('date'),location:values.get('location')})});
-    weddingProfile={names:result.wedding.name,date:normalizeWeddingDate(result.wedding.wedding_date),location:result.wedding.location||''};
+    const result=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}`,{method:'PATCH',body:JSON.stringify({name:values.get('names'),weddingDate:values.get('date'),rsvpDeadline:values.get('rsvpDeadline')||null,location:values.get('location')})});
+    weddingProfile={names:result.wedding.name,date:normalizeWeddingDate(result.wedding.wedding_date),rsvpDeadline:normalizeWeddingDate(result.wedding.rsvp_deadline),location:result.wedding.location||''};
     localStorage.setItem('everAfterWeddingProfile',JSON.stringify(weddingProfile));
     // Update this page right away, then re-read the active workspace so every
     // display uses the server's canonical date, name, and location.
@@ -965,7 +967,7 @@ document.querySelector('#schedule-next-range').onclick=()=>{scheduleRangeStart=a
 window.addEventListener('ever-after-auth-changed',()=>loadSharedSchedule().catch(error=>console.error('Could not load shared schedule',error)));
 
 function scheduleItemMeta(item){
-  const labels={manual:'Manual event',wedding:'Wedding day',honeymoon:'Honeymoon trip',task:'Task due',expense:'Expense due',payment:'Payment recorded',vendor_quote:'Quote expires',reservation:'Reservation due',itinerary:'Itinerary',attire:'Appointment'};
+  const labels={manual:'Manual event',wedding:'Wedding day',rsvp:'RSVP deadline',honeymoon:'Honeymoon trip',task:'Task due',expense:'Expense due',payment:'Payment recorded',vendor_quote:'Quote expires',reservation:'Reservation due',itinerary:'Itinerary',attire:'Appointment'};
   const parts=[labels[item.kind]||'Schedule item'];if(item.startsAt)parts.push(String(item.startsAt).slice(0,5));if(item.status)parts.push(item.status);if(item.amount!==undefined)parts.push(money(Number(item.amount)));if(item.location)parts.push(item.location);if(item.notes)parts.push(item.notes);return parts.join(' · ');
 }
 function openLinkedScheduleItem(item){
