@@ -227,6 +227,13 @@ Build the Month view, then add the future structured date fields described in Ph
 - Added multi-day manual-event expansion so an event is visible on every date it covers in Agenda and Month views.
 - Kept date-only values as calendar-day strings so they do not shift due to UTC conversion.
 
+### Completed — structured honeymoon dates (July 2026)
+
+- Added start/end dates to the shared honeymoon profile, allowing the trip itself to appear as a multi-day travel item.
+- Added start/end dates and optional local start/end times to shared travel reservations.
+- Kept reservation payment due dates separate from travel dates, so Schedule can show a travel range and a money deadline when both exist.
+- Updated the Honeymoon forms and reservation history to display and edit the structured fields.
+
 ### Phase 1 — Shared manual event foundation
 
 1. Add an `events` migration with indexes for `wedding_id`, active state, and date range lookups.
