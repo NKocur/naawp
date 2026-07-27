@@ -144,7 +144,7 @@ Keep uploads safe, understandable, and maintainable as more receipts, quotes, PD
 
 ### Progress
 
-- Payment receipts are now protected shared attachments. Owners and Editors can attach a PDF or image while recording/editing a payment, or later from Payment History; permitted finance members can open or delete it.
+- Payment receipts and expense quotes are now protected shared attachments. Owners and Editors can attach a PDF or image while creating/editing either record, or later from its history row; permitted finance members can open or delete it.
 
 ### Tasks
 

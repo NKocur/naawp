@@ -67,7 +67,7 @@ Make family collaboration safe and understandable.
 
 ## Priority 4 — Financial and attachment polish
 
-1. [Done] Payment receipt upload/viewing uses the protected server attachment system. Receipts can be added while recording or editing a payment, or later from Payment History; permitted finance members can open or delete them.
+1. [Done] Payment receipts and expense quotes use the protected server attachment system. Each can be added while creating or editing its record, or later from the matching expense/payment history; permitted finance members can open or delete it.
 2. Add shared payment schedules for deposits, installments, and final balances.
 3. Add owner financial exports (CSV and printable summary).
 4. Add file replace, archive, restore, and metadata preview support.

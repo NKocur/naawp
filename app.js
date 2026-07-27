@@ -564,6 +564,7 @@ async function loadSharedFinanceSummary() {
   list.querySelector('h2').textContent='Expenses & payments';
   list.querySelector('#shared-expense-form button').textContent='Add expense';
   list.querySelector('#shared-payment-form button').textContent='Record payment';
+  list.querySelector('#shared-expense-form [name="dueDate"]').insertAdjacentHTML('afterend','<input name="quote" type="file" accept="image/*,.pdf,application/pdf" aria-label="Attach quote (PDF or image)" />');
   list.querySelector('#shared-payment-form [name="paidOn"]').insertAdjacentHTML('afterend','<input name="receipt" type="file" accept="image/*,.pdf,application/pdf" aria-label="Attach receipt (PDF or image)" />');
   list.querySelectorAll('.eyebrow')[1].textContent='PAYMENT HISTORY';
   const expenseIntro=document.createElement('p');expenseIntro.className='form-note';expenseIntro.textContent='Add an expense first, then record payments against it to keep the balance current.';list.querySelector('h2').insertAdjacentElement('afterend',expenseIntro);
@@ -587,6 +588,7 @@ async function loadSharedFinanceSummary() {
       expenseForm.scrollIntoView({behavior:'smooth',block:'center'});
     };
     archive.onclick=async()=>{if(!window.confirm(`Delete expense ${expense.name}?`))return;try{await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/expenses/${expense.id}`,{method:'DELETE'});await loadSharedFinanceSummary();}catch(error){window.alert(error.message);}};
+    const quotes=document.createElement('div');quotes.className='task-attachments';quotes.innerHTML=(expense.quote_attachments||[]).map(attachment=>`<span class="task-file"><a href="/api/weddings/${sharedTaskWorkspaceId}/expenses/${expense.id}/quotes/${attachment.id}/download" target="_blank" rel="noreferrer">${escapeTaskHtml(attachment.originalName)}</a><small>${formatAttachmentSize(Number(attachment.byteSize))}</small><button title="Delete quote" data-delete-shared-expense-quote="${expense.id}:${attachment.id}">×</button></span>`).join('');const uploadQuote=document.createElement('button');uploadQuote.type='button';uploadQuote.textContent='Attach quote';uploadQuote.onclick=()=>uploadSharedExpenseQuote(expense.id);quotes.append(uploadQuote);row.append(quotes);quotes.querySelectorAll('[data-delete-shared-expense-quote]').forEach(button=>button.onclick=async()=>{const [expenseId,attachmentId]=button.dataset.deleteSharedExpenseQuote.split(':');if(!window.confirm('Delete this expense quote?'))return;try{await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/expenses/${expenseId}/quotes/${attachmentId}`,{method:'DELETE'});await loadSharedFinanceSummary();}catch(error){window.alert(error.message);}});
     actions.append(edit,archive); row.append(actions);
   });
   paymentRecords.payments.forEach((payment,index)=>{
@@ -604,7 +606,7 @@ async function loadSharedFinanceSummary() {
     const receipts=document.createElement('div');receipts.className='task-attachments';receipts.innerHTML=(payment.receipts||[]).map(receipt=>`<span class="task-file"><a href="/api/weddings/${sharedTaskWorkspaceId}/payments/${payment.id}/receipts/${receipt.id}/download" target="_blank" rel="noreferrer">${escapeTaskHtml(receipt.originalName)}</a><small>${formatAttachmentSize(Number(receipt.byteSize))}</small><button data-delete-shared-payment-receipt="${payment.id}:${receipt.id}" title="Delete receipt">×</button></span>`).join('');const upload=document.createElement('button');upload.type='button';upload.textContent='Attach receipt';upload.onclick=()=>uploadSharedPaymentReceipt(payment.id);receipts.append(upload);row.append(receipts);
     const actions=document.createElement('div');actions.className='payment-actions';actions.append(edit,button);row.append(actions);
   });
-  expenseForm.onsubmit=async event=>{event.preventDefault();const values=new FormData(event.currentTarget),payload={name:values.get('name'),committed:Number(values.get('amount')),category:values.get('category'),stage:values.get('stage'),dueDate:values.get('dueDate')||null};try{const path=editingSharedExpenseId?`/api/weddings/${sharedTaskWorkspaceId}/expenses/${editingSharedExpenseId}`:`/api/weddings/${sharedTaskWorkspaceId}/expenses`;await window.everAfterApi(path,{method:editingSharedExpenseId?'PATCH':'POST',body:JSON.stringify(payload)});editingSharedExpenseId=null;await loadSharedFinanceSummary();}catch(error){window.alert(error.message);}};
+  expenseForm.onsubmit=async event=>{event.preventDefault();const values=new FormData(event.currentTarget),quote=values.get('quote'),payload={name:values.get('name'),committed:Number(values.get('amount')),category:values.get('category'),stage:values.get('stage'),dueDate:values.get('dueDate')||null};try{const isEditing=Boolean(editingSharedExpenseId),path=isEditing?`/api/weddings/${sharedTaskWorkspaceId}/expenses/${editingSharedExpenseId}`:`/api/weddings/${sharedTaskWorkspaceId}/expenses`,result=await window.everAfterApi(path,{method:isEditing?'PATCH':'POST',body:JSON.stringify(payload)}),expenseId=editingSharedExpenseId||result.expense?.id;if(quote?.size&&expenseId)await uploadSharedExpenseQuote(expenseId,quote);editingSharedExpenseId=null;await loadSharedFinanceSummary();}catch(error){window.alert(error.message);}};
   paymentForm.onsubmit=async event=>{event.preventDefault();const values=new FormData(event.currentTarget),owedAmount=Number(values.get('owedAmount'))||0,receipt=values.get('receipt');if(owedAmount&&!values.get('owedByUserId'))return window.alert('Choose the workspace member who owes this reimbursement.');const payload={expenseId:values.get('expenseId')||null,payerUserId:values.get('payerUserId'),amount:Number(values.get('amount')),paidOn:values.get('paidOn')||undefined,splits:owedAmount?[{owedByUserId:values.get('owedByUserId'),amount:owedAmount}]:[]};try{const isEditing=Boolean(editingSharedPaymentId),path=isEditing?`/api/weddings/${sharedTaskWorkspaceId}/payments/${editingSharedPaymentId}`:`/api/weddings/${sharedTaskWorkspaceId}/payments`,result=await window.everAfterApi(path,{method:isEditing?'PATCH':'POST',body:JSON.stringify(payload)}),paymentId=editingSharedPaymentId||result.payment?.id;if(receipt?.size&&paymentId)await uploadSharedPaymentReceipt(paymentId,receipt);editingSharedPaymentId=null;await loadSharedFinanceSummary();}catch(error){window.alert(error.message);}};
   list.querySelectorAll('[data-archive-shared-payment]').forEach(button=>button.onclick=async()=>{if(!window.confirm('Delete this payment record?'))return;try{await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/payments/${button.dataset.archiveSharedPayment}`,{method:'DELETE'});await loadSharedFinanceSummary();}catch(error){window.alert(error.message);}});
   list.querySelectorAll('[data-delete-shared-payment-receipt]').forEach(button=>button.onclick=async()=>{const [paymentId,receiptId]=button.dataset.deleteSharedPaymentReceipt.split(':');if(!window.confirm('Delete this receipt?'))return;try{await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/payments/${paymentId}/receipts/${receiptId}`,{method:'DELETE'});await loadSharedFinanceSummary();}catch(error){window.alert(error.message);}});
@@ -833,6 +835,17 @@ async function openSharedIdeaBoard(board){
   panel.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function formatAttachmentSize(bytes) { return bytes < 1024 * 1024 ? `${Math.max(1,Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`; }
+async function uploadSharedExpenseQuote(expenseId, selectedFile) {
+  let file=selectedFile;
+  if(!file){
+    const input=document.createElement('input');input.type='file';input.accept='image/*,.pdf,application/pdf';
+    file=await new Promise(resolve=>{input.onchange=()=>resolve(input.files?.[0]||null);input.click();});
+  }
+  if(!file)return;
+  const body=new FormData();body.append('file',file);
+  await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/expenses/${expenseId}/quotes`,{method:'POST',body});
+  await loadSharedFinanceSummary();
+}
 async function uploadSharedPaymentReceipt(paymentId, selectedFile) {
   let file=selectedFile;
   if(!file){

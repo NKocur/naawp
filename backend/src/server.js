@@ -284,7 +284,8 @@ app.get('/api/weddings/:weddingId/expenses', async (request, reply) => {
   const user=await requireUser(request,reply); if(!user)return;
   const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
   const result=await query(`SELECT e.*,c.name AS budget_category_name,v.name AS vendor_name,
-    COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.expense_id=e.id AND p.archived_at IS NULL),0)::numeric AS payments_total
+    COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.expense_id=e.id AND p.archived_at IS NULL),0)::numeric AS payments_total,
+    COALESCE((SELECT json_agg(json_build_object('id',a.id,'originalName',a.original_name,'contentType',a.content_type,'byteSize',a.byte_size,'createdAt',a.created_at) ORDER BY a.created_at) FROM expense_quote_attachments a WHERE a.expense_id=e.id AND a.archived_at IS NULL),'[]'::json) AS quote_attachments
     FROM expenses e LEFT JOIN budget_categories c ON c.id=e.budget_category_id LEFT JOIN vendors v ON v.id=e.vendor_id
     WHERE e.wedding_id=$1 AND e.archived_at IS NULL ORDER BY e.due_date NULLS LAST,e.created_at DESC`,[weddingId]);
   return { expenses:result.rows };
@@ -309,6 +310,25 @@ app.delete('/api/weddings/:weddingId/expenses/:expenseId', async (request, reply
   const {weddingId,expenseId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
   await withTransaction(async client=>{const result=await client.query('UPDATE expenses SET archived_at=now(),updated_by=$3,updated_at=now() WHERE wedding_id=$1 AND id=$2 AND archived_at IS NULL RETURNING id',[weddingId,expenseId,user.id]);if(!result.rows[0])throw httpError('Expense not found.',404);await audit(client,weddingId,user.id,'expense',expenseId,'archived');});
   reply.code(204).send();
+});
+app.post('/api/weddings/:weddingId/expenses/:expenseId/quotes', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,expenseId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const expense=await query('SELECT id FROM expenses WHERE id=$1 AND wedding_id=$2 AND archived_at IS NULL',[expenseId,weddingId]);if(!expense.rows[0])throw httpError('Expense not found.',404);
+  const file=await request.file();if(!file)throw httpError('Choose one quote file to upload.');const buffer=await file.toBuffer();
+  const id=crypto.randomUUID(),originalName=path.basename(file.filename||'quote'),storageKey=`${id}-${originalName.replace(/[^a-zA-Z0-9._-]/g,'_')}`;await mkdir(uploadsDirectory,{recursive:true});await writeFile(path.join(uploadsDirectory,storageKey),buffer);
+  const attachment=await withTransaction(async client=>{const result=await client.query(`INSERT INTO expense_quote_attachments (id,expense_id,wedding_id,original_name,storage_key,content_type,byte_size,checksum_sha256,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,original_name,content_type,byte_size,created_at`,[id,expenseId,weddingId,originalName,storageKey,file.mimetype||'application/octet-stream',buffer.length,crypto.createHash('sha256').update(buffer).digest('hex'),user.id]);await audit(client,weddingId,user.id,'expense_quote_attachment',id,'created',{expenseId,originalName});return result.rows[0];});
+  reply.code(201).send({attachment});
+});
+app.get('/api/weddings/:weddingId/expenses/:expenseId/quotes/:attachmentId/download', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,expenseId,attachmentId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const result=await query('SELECT original_name,storage_key,content_type FROM expense_quote_attachments WHERE id=$1 AND expense_id=$2 AND wedding_id=$3 AND archived_at IS NULL',[attachmentId,expenseId,weddingId]);if(!result.rows[0])throw httpError('Quote attachment not found.',404);const attachment=result.rows[0];reply.header('Content-Disposition',`inline; filename="${attachment.original_name.replaceAll('"','')}"`).type(attachment.content_type);return reply.send(createReadStream(path.join(uploadsDirectory,attachment.storage_key)));
+});
+app.delete('/api/weddings/:weddingId/expenses/:expenseId/quotes/:attachmentId', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,expenseId,attachmentId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  await withTransaction(async client=>{const result=await client.query('UPDATE expense_quote_attachments SET archived_at=now() WHERE id=$1 AND expense_id=$2 AND wedding_id=$3 AND archived_at IS NULL RETURNING id',[attachmentId,expenseId,weddingId]);if(!result.rows[0])throw httpError('Quote attachment not found.',404);await audit(client,weddingId,user.id,'expense_quote_attachment',attachmentId,'archived',{expenseId});});reply.code(204).send();
 });
 app.get('/api/weddings/:weddingId/payments', async (request, reply) => {
   const user=await requireUser(request,reply); if(!user)return;
