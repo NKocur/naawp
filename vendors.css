@@ -10,6 +10,18 @@
 .vendor-entry-panel h3 { margin: .2rem 0; color: #2c4031; }
 .vendor-entry-panel > p:not(.eyebrow) { margin: 0 0 .9rem; color: #647069; font-size: .9rem; }
 
+.vendor-workspace-entry { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0 1.5rem; }
+.vendor-workspace-entry .vendor-entry-panel,.vendor-workspace-entry #shared-vendor-quotes.vendor-quote-entry-panel { margin: 0; }
+.vendor-workspace-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.vendor-workspace-grid .vendor-card { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); gap: .3rem .9rem; padding: 1.15rem; border-color: #d9e1d8; box-shadow: 0 4px 15px #2336160a; }
+.vendor-workspace-grid .vendor-card .vendor-image { grid-row: span 4; width: 3.2rem; height: 3.2rem; margin: 0; font-size: 1.55rem; }
+.vendor-workspace-grid .vendor-card .eyebrow,.vendor-workspace-grid .vendor-card h2,.vendor-workspace-grid .vendor-card > p { grid-column: 2; }
+.vendor-workspace-grid .vendor-card h2,.vendor-workspace-grid .vendor-card > p { margin: 0; }
+.vendor-workspace-grid .vendor-card footer,.vendor-workspace-grid .vendor-card .vendor-actions { grid-column: 1 / -1; }
+.vendor-workspace-grid .vendor-card footer { margin-top: .6rem; }
+.vendor-workspace-grid .vendor-card .vendor-actions { margin: 0; }
+.vendor-workspace-grid .vendor-quote-list { grid-column: 1 / -1; background: #f4f8f3; border: 1px solid #dbe5d9; border-radius: 10px; padding: .85rem; }
+
 #shared-vendor-quotes.vendor-quote-entry-panel {
   margin: 0 0 1.5rem;
   padding: 1.1rem;
@@ -92,4 +104,5 @@
   #shared-vendor-quotes .vendor-quote-entry-form { grid-template-columns: 1fr; }
   .vendor-entry-panel .vendor-entry-form > *,
   #shared-vendor-quotes .vendor-quote-entry-form > * { grid-column: 1; }
+  .vendor-workspace-entry,.vendor-workspace-grid { grid-template-columns: 1fr; }
 }
