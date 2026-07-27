@@ -229,21 +229,21 @@ app.post('/api/invitations/accept', async (request, reply) => {
 
 app.get('/api/weddings', async (request, reply) => {
   const user = await requireUser(request, reply); if (!user) return;
-  const result = await query(`SELECT w.id,w.name,w.wedding_date,w.rsvp_deadline,w.location,w.budget_total,m.role
+  const result = await query(`SELECT w.id,w.name,w.wedding_date,w.rsvp_deadline,w.location,w.budget_total,w.currency,m.role
     FROM weddings w JOIN memberships m ON m.wedding_id=w.id WHERE m.user_id=$1 ORDER BY w.created_at`, [user.id]);
   return { weddings: result.rows };
 });
 app.patch('/api/weddings/:weddingId', async (request, reply) => {
   const user = await ownerUser(request, reply); if (!user) return;
   const { weddingId } = request.params;
-  const body = z.object({ name:z.string().trim().min(1).max(160).optional(), weddingDate:z.string().date().nullable().optional(), rsvpDeadline:z.string().date().nullable().optional(), location:z.string().trim().max(160).nullable().optional(), budgetTotal:z.number().nonnegative().optional() }).parse(request.body);
-  const fields = { name:body.name, wedding_date:body.weddingDate, rsvp_deadline:body.rsvpDeadline, location:body.location, budget_total:body.budgetTotal };
+  const body = z.object({ name:z.string().trim().min(1).max(160).optional(), weddingDate:z.string().date().nullable().optional(), rsvpDeadline:z.string().date().nullable().optional(), location:z.string().trim().max(160).nullable().optional(), budgetTotal:z.number().nonnegative().optional(), currency:z.enum(['USD','PHP','EUR','GBP','CAD','AUD','JPY','SGD','HKD','AED']).optional() }).parse(request.body);
+  const fields = { name:body.name, wedding_date:body.weddingDate, rsvp_deadline:body.rsvpDeadline, location:body.location, budget_total:body.budgetTotal, currency:body.currency };
   const entries = Object.entries(fields).filter(([,value]) => value !== undefined);
   if (!entries.length) return reply.code(400).send({ error:'No changes supplied.' });
   const wedding = await withTransaction(async client => {
     const values=[weddingId];
     const sets=entries.map(([column,value],index)=>{values.push(value);return `${column}=$${index+2}`;});
-    const result=await client.query(`UPDATE weddings SET ${sets.join(',')},updated_at=now() WHERE id=$1 RETURNING id,name,wedding_date,rsvp_deadline,location,budget_total`,values);
+    const result=await client.query(`UPDATE weddings SET ${sets.join(',')},updated_at=now() WHERE id=$1 RETURNING id,name,wedding_date,rsvp_deadline,location,budget_total,currency`,values);
     if (!result.rows[0]) throw httpError('Wedding workspace not found.',404);
     await audit(client,weddingId,user.id,'wedding',weddingId,'updated',{fields:entries.map(([column])=>column)});
     return result.rows[0];

@@ -1,0 +1,4 @@
+ALTER TABLE weddings
+  ADD COLUMN IF NOT EXISTS currency CHAR(3) NOT NULL DEFAULT 'USD';
+
+UPDATE weddings SET currency='USD' WHERE currency IS NULL;
