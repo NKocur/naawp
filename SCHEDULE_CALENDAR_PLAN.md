@@ -251,6 +251,11 @@ Build the Month view, then add the future structured date fields described in Ph
 - Added an optional “Need by” date to shared packing items.
 - Kept packing checklist-only when no date is supplied, while dated items appear as linked Schedule reminders.
 
+### Completed — optional travel-document expiry dates (July 2026)
+
+- Added an optional expiry date for shared travel documents such as passports, visas, and insurance.
+- Expiry dates are visible on the document card and appear as linked Schedule reminders only when provided.
+
 ### Phase 1 — Shared manual event foundation
 
 1. Add an `events` migration with indexes for `wedding_id`, active state, and date range lookups.
