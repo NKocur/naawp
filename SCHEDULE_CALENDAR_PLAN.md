@@ -209,9 +209,16 @@ The response must include only records belonging to the requested wedding worksp
 - Added the manual event dialog with optional end date, local times, location, and notes. Closing or cancelling the dialog does not create a record.
 - Added frontend safeguards for date-only rendering and a full-width event save action.
 
-### Next — linked schedule feed
+### Next — calendar grid and structured-date follow-ups
 
-Implement the normalized schedule feed described in Phase 2 so existing shared planning dates appear beside manual events without being copied into a second editable record.
+Build the Month view, then add the future structured date fields described in Phase 2A without relying on free-text notes or labels.
+
+### Completed — initial linked schedule feed (July 2026)
+
+- Added the normalized shared `/schedule` feed with workspace isolation and range filtering.
+- Added the initial ready sources: wedding day, task due dates, expense due dates, payment history, vendor quote expirations, honeymoon reservation due dates, itinerary items, and attire appointments.
+- Linked items are read-only inside Schedule and provide an **Open** action back to their owning planner section.
+- Added category filters for manual events, tasks, money, vendors, travel, appointments, and ceremony items.
 
 ### Phase 1 — Shared manual event foundation
 

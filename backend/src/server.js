@@ -878,6 +878,35 @@ app.delete('/api/weddings/:weddingId/events/:eventId',async(request,reply)=>{
   await withTransaction(async client=>{const result=await client.query('UPDATE schedule_events SET archived_at=now(),updated_by=$3,updated_at=now() WHERE wedding_id=$1 AND id=$2 AND archived_at IS NULL RETURNING id',[weddingId,eventId,user.id]);if(!result.rows[0])throw httpError('Schedule event not found.',404);await audit(client,weddingId,user.id,'schedule_event',eventId,'archived');});
   reply.code(204).send();
 });
+app.get('/api/weddings/:weddingId/schedule',async(request,reply)=>{
+  const user=await requireUser(request,reply);if(!user)return;
+  const {weddingId}=request.params;await requireMembership(user.id,weddingId,allRoles);
+  const range=z.object({from:z.string().date(),to:z.string().date()}).parse(request.query);
+  if(range.to<range.from)throw httpError('The schedule range is invalid.');
+  const [manual,wedding,tasks,expenses,payments,quotes,reservations,itinerary,appointments]=await Promise.all([
+    query(`SELECT id,title,event_type,starts_on,ends_on,starts_at,ends_at,location,notes FROM schedule_events WHERE wedding_id=$1 AND archived_at IS NULL AND starts_on <= $3 AND COALESCE(ends_on,starts_on) >= $2 ORDER BY starts_on,starts_at NULLS LAST,created_at`,[weddingId,range.from,range.to]),
+    query('SELECT id,name,wedding_date,location FROM weddings WHERE id=$1 AND wedding_date BETWEEN $2 AND $3',[weddingId,range.from,range.to]),
+    query('SELECT id,title,category,priority,status,due_date FROM tasks WHERE wedding_id=$1 AND archived_at IS NULL AND due_date BETWEEN $2 AND $3',[weddingId,range.from,range.to]),
+    query('SELECT id,name,category,committed,stage,due_date FROM expenses WHERE wedding_id=$1 AND archived_at IS NULL AND due_date BETWEEN $2 AND $3',[weddingId,range.from,range.to]),
+    query(`SELECT p.id,p.amount,p.paid_on,COALESCE(e.name,v.name,'Unlinked payment') AS title FROM payments p LEFT JOIN expenses e ON e.id=p.expense_id LEFT JOIN vendors v ON v.id=p.vendor_id WHERE p.wedding_id=$1 AND p.archived_at IS NULL AND p.paid_on BETWEEN $2 AND $3`,[weddingId,range.from,range.to]),
+    query(`SELECT q.id,q.title,q.expires_on,v.name AS vendor_name FROM vendor_quotes q JOIN vendors v ON v.id=q.vendor_id WHERE q.wedding_id=$1 AND q.archived_at IS NULL AND q.expires_on BETWEEN $2 AND $3`,[weddingId,range.from,range.to]),
+    query('SELECT id,name,type,status,due_date,total,paid FROM travel_reservations WHERE wedding_id=$1 AND archived_at IS NULL AND due_date BETWEEN $2 AND $3',[weddingId,range.from,range.to]),
+    query('SELECT id,title,planned_on,note FROM honeymoon_itinerary_items WHERE wedding_id=$1 AND archived_at IS NULL AND planned_on BETWEEN $2 AND $3',[weddingId,range.from,range.to]),
+    query('SELECT id,title,location,appointment_on FROM attire_appointments WHERE wedding_id=$1 AND archived_at IS NULL AND appointment_on BETWEEN $2 AND $3',[weddingId,range.from,range.to])
+  ]);
+  const items=[
+    ...manual.rows.map(row=>({id:`manual:${row.id}`,kind:'manual',category:'manual',sourceId:row.id,title:row.title,startsOn:row.starts_on,endsOn:row.ends_on,startsAt:row.starts_at,endsAt:row.ends_at,location:row.location,notes:row.notes,eventType:row.event_type,linked:false})),
+    ...wedding.rows.map(row=>({id:`wedding:${row.id}`,kind:'wedding',category:'ceremony',sourceId:row.id,title:row.name,startsOn:row.wedding_date,location:row.location,linked:true})),
+    ...tasks.rows.map(row=>({id:`task:${row.id}`,kind:'task',category:'task',sourceId:row.id,title:row.title,startsOn:row.due_date,status:row.status,priority:row.priority,notes:row.category,linked:true})),
+    ...expenses.rows.map(row=>({id:`expense:${row.id}`,kind:'expense',category:'money',sourceId:row.id,title:row.name,startsOn:row.due_date,status:row.stage,amount:Number(row.committed),notes:row.category,linked:true})),
+    ...payments.rows.map(row=>({id:`payment:${row.id}`,kind:'payment',category:'money',sourceId:row.id,title:row.title,startsOn:row.paid_on,status:'paid',amount:Number(row.amount),linked:true})),
+    ...quotes.rows.map(row=>({id:`vendor_quote:${row.id}`,kind:'vendor_quote',category:'vendor',sourceId:row.id,title:row.title,startsOn:row.expires_on,notes:row.vendor_name,linked:true})),
+    ...reservations.rows.map(row=>({id:`reservation:${row.id}`,kind:'reservation',category:'travel',sourceId:row.id,title:row.name,startsOn:row.due_date,status:row.status,amount:Number(row.total)-Number(row.paid),notes:`${row.type} payment due`,linked:true})),
+    ...itinerary.rows.map(row=>({id:`itinerary:${row.id}`,kind:'itinerary',category:'travel',sourceId:row.id,title:row.title,startsOn:row.planned_on,notes:row.note,linked:true})),
+    ...appointments.rows.map(row=>({id:`attire:${row.id}`,kind:'attire',category:'appointment',sourceId:row.id,title:row.title,startsOn:row.appointment_on,location:row.location,linked:true}))
+  ].sort((a,b)=>String(a.startsOn).localeCompare(String(b.startsOn))||String(a.startsAt||'').localeCompare(String(b.startsAt||''))||a.title.localeCompare(b.title));
+  return {items};
+});
 
 app.setErrorHandler((error, request, reply) => {
   if (error.name === 'ZodError') return reply.code(400).send({ error: 'Invalid request.', details: error.issues });

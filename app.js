@@ -962,3 +962,35 @@ document.querySelector('#schedule-today').onclick=()=>{scheduleRangeStart=localD
 document.querySelector('#schedule-previous-range').onclick=()=>{scheduleRangeStart=addScheduleDays(scheduleRange().from,-90);loadSharedSchedule().catch(error=>window.alert(error.message));};
 document.querySelector('#schedule-next-range').onclick=()=>{scheduleRangeStart=addScheduleDays(scheduleRange().from,90);loadSharedSchedule().catch(error=>window.alert(error.message));};
 window.addEventListener('ever-after-auth-changed',()=>loadSharedSchedule().catch(error=>console.error('Could not load shared schedule',error)));
+
+function scheduleItemMeta(item){
+  const labels={manual:'Manual event',wedding:'Wedding day',task:'Task due',expense:'Expense due',payment:'Payment recorded',vendor_quote:'Quote expires',reservation:'Reservation due',itinerary:'Itinerary',attire:'Appointment'};
+  const parts=[labels[item.kind]||'Schedule item'];if(item.startsAt)parts.push(String(item.startsAt).slice(0,5));if(item.status)parts.push(item.status);if(item.amount!==undefined)parts.push(money(Number(item.amount)));if(item.location)parts.push(item.location);if(item.notes)parts.push(item.notes);return parts.join(' · ');
+}
+function openLinkedScheduleItem(item){
+  const views={task:'checklist',expense:'budget',payment:'budget',vendor_quote:'vendors',reservation:'honeymoon',itinerary:'honeymoon',attire:'details'};
+  if(item.kind==='wedding'){document.querySelector('#open-settings')?.click();return;}
+  const view=views[item.kind];if(view){location.hash=view;setView(view);}
+}
+function renderSharedSchedule(){
+  const view=document.querySelector('#schedule'),agenda=view.querySelector('#schedule-agenda'),filter=view.querySelector('#schedule-kind-filter'),addButton=view.querySelector('#add-schedule-event');
+  if(!sharedTaskWorkspaceId||!window.everAfterApi){agenda.innerHTML='<p class="empty-state">Sign in to see your shared schedule.</p>';addButton.hidden=true;return;}
+  addButton.hidden=!scheduleCanEdit();
+  const selected=filter.value||'all',items=sharedScheduleEvents.filter(item=>selected==='all'||item.category===selected);
+  if(!items.length){agenda.innerHTML='<p class="empty-state">No schedule items in this range. Add an event or give a planning record a date.</p>';return;}
+  const byDay=new Map();for(const item of items){const key=String(item.startsOn).slice(0,10);byDay.set(key,[...(byDay.get(key)||[]),item]);}
+  agenda.innerHTML=[...byDay.entries()].map(([date,dayItems])=>{const label=dateFromString(date);return `<section class="schedule-day"><div class="schedule-date-label"><strong>${label.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</strong><small>${label.toLocaleDateString('en-US',{weekday:'long'})}</small></div><div class="schedule-day-items">${dayItems.map(item=>`<article class="schedule-event-row"><span class="schedule-event-dot" data-kind="${escapeTaskHtml(item.category)}"></span><div><strong>${escapeTaskHtml(item.title)}</strong><small>${escapeTaskHtml(scheduleItemMeta(item))}${item.endsOn&&String(item.endsOn).slice(0,10)!==date?` · through ${escapeTaskHtml(String(item.endsOn).slice(0,10))}`:''}</small></div>${item.linked?`<div class="schedule-event-actions-inline"><button data-open-schedule-item="${item.id}">Open</button></div>`:scheduleCanEdit()?`<div class="schedule-event-actions-inline"><button data-edit-schedule-event="${item.sourceId}">Edit</button><button class="danger-action" data-delete-schedule-event="${item.sourceId}">Delete</button></div>`:''}</article>`).join('')}</div></section>`;}).join('');
+  agenda.querySelectorAll('[data-open-schedule-item]').forEach(button=>button.onclick=()=>openLinkedScheduleItem(sharedScheduleEvents.find(item=>item.id===button.dataset.openScheduleItem)));
+  agenda.querySelectorAll('[data-edit-schedule-event]').forEach(button=>button.onclick=()=>openScheduleEvent(sharedScheduleEvents.find(item=>item.kind==='manual'&&item.sourceId===button.dataset.editScheduleEvent)));
+  agenda.querySelectorAll('[data-delete-schedule-event]').forEach(button=>button.onclick=async()=>{if(!window.confirm('Delete this schedule event?'))return;try{await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/events/${button.dataset.deleteScheduleEvent}`,{method:'DELETE'});await loadSharedSchedule();}catch(error){window.alert(error.message);}});
+}
+async function loadSharedSchedule(){
+  const view=document.querySelector('#schedule');if(!view)return;
+  if(!sharedTaskWorkspaceId||!window.everAfterApi){renderSharedSchedule();return;}
+  const range=scheduleRange();const result=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/schedule?from=${range.from}&to=${range.to}`);sharedScheduleEvents=result.items||[];renderSharedSchedule();
+}
+function openScheduleEvent(item=null){
+  if(!scheduleCanEdit())return;const dialog=document.querySelector('#schedule-event-modal'),form=document.querySelector('#schedule-event-form');editingSharedScheduleEventId=item?.sourceId||null;form.reset();
+  document.querySelector('#schedule-event-modal-title').textContent=item?'Edit event':'Add an event';
+  form.elements.title.value=item?.title||'';form.elements.eventType.value=item?.eventType||'meeting';form.elements.location.value=item?.location||'';form.elements.startsOn.value=String(item?.startsOn||scheduleRange().from).slice(0,10);form.elements.endsOn.value=item?.endsOn?String(item.endsOn).slice(0,10):'';form.elements.startsAt.value=item?.startsAt?String(item.startsAt).slice(0,5):'';form.elements.endsAt.value=item?.endsAt?String(item.endsAt).slice(0,5):'';form.elements.notes.value=item?.notes||'';dialog.showModal();
+}
