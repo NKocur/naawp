@@ -824,6 +824,61 @@ app.delete('/api/weddings/:weddingId/tasks/:taskId', async (request, reply) => {
   reply.code(204).send();
 });
 
+const scheduleEventTypes=['meeting','appointment','reminder','travel','ceremony','other'];
+function validateScheduleEvent(event) {
+  if (event.endsOn && event.endsOn < event.startsOn) throw httpError('The end date cannot be before the start date.');
+  if (event.endsOn === event.startsOn && event.startsAt && event.endsAt && event.endsAt < event.startsAt) throw httpError('The end time cannot be before the start time.');
+}
+const scheduleEventBody=z.object({
+  title:z.string().trim().min(1).max(250).optional(), eventType:z.enum(scheduleEventTypes).optional(),
+  startsOn:z.string().date().optional(), endsOn:z.string().date().nullable().optional(),
+  startsAt:z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).nullable().optional(), endsAt:z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).nullable().optional(),
+  location:z.string().trim().max(1000).nullable().optional(), notes:z.string().trim().max(5000).nullable().optional()
+});
+app.get('/api/weddings/:weddingId/events',async(request,reply)=>{
+  const user=await requireUser(request,reply);if(!user)return;
+  const {weddingId}=request.params;await requireMembership(user.id,weddingId,allRoles);
+  const range=z.object({from:z.string().date(),to:z.string().date()}).parse(request.query);
+  if(range.to<range.from)throw httpError('The schedule range is invalid.');
+  const result=await query(`SELECT e.*,u.display_name AS created_by_name FROM schedule_events e
+    LEFT JOIN users u ON u.id=e.created_by
+    WHERE e.wedding_id=$1 AND e.archived_at IS NULL AND e.starts_on <= $3 AND COALESCE(e.ends_on,e.starts_on) >= $2
+    ORDER BY e.starts_on,e.starts_at NULLS LAST,e.created_at`,[weddingId,range.from,range.to]);
+  return {events:result.rows};
+});
+app.post('/api/weddings/:weddingId/events',async(request,reply)=>{
+  const user=await requireUser(request,reply);if(!user)return;
+  const {weddingId}=request.params;await requireMembership(user.id,weddingId,['owner','editor','contributor']);
+  const body=scheduleEventBody.extend({title:z.string().trim().min(1).max(250),startsOn:z.string().date()}).parse(request.body);
+  validateScheduleEvent(body);
+  const event=await withTransaction(async client=>{const result=await client.query(`INSERT INTO schedule_events
+    (wedding_id,title,event_type,starts_on,ends_on,starts_at,ends_at,location,notes,created_by,updated_by)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) RETURNING *`,[weddingId,body.title,body.eventType||'other',body.startsOn,body.endsOn||null,body.startsAt||null,body.endsAt||null,body.location||null,body.notes||null,user.id]);
+    await audit(client,weddingId,user.id,'schedule_event',result.rows[0].id,'created');return result.rows[0];});
+  reply.code(201).send({event});
+});
+app.patch('/api/weddings/:weddingId/events/:eventId',async(request,reply)=>{
+  const user=await requireUser(request,reply);if(!user)return;
+  const {weddingId,eventId}=request.params;await requireMembership(user.id,weddingId,['owner','editor','contributor']);
+  const body=scheduleEventBody.parse(request.body);
+  const event=await withTransaction(async client=>{const current=(await client.query('SELECT * FROM schedule_events WHERE id=$1 AND wedding_id=$2 AND archived_at IS NULL FOR UPDATE',[eventId,weddingId])).rows[0];
+    if(!current)throw httpError('Schedule event not found.',404);
+    const merged={title:body.title??current.title,eventType:body.eventType??current.event_type,startsOn:body.startsOn??current.starts_on,endsOn:body.endsOn===undefined?current.ends_on:body.endsOn,startsAt:body.startsAt===undefined?current.starts_at:body.startsAt,endsAt:body.endsAt===undefined?current.ends_at:body.endsAt};
+    validateScheduleEvent(merged);
+    const fields={title:body.title,event_type:body.eventType,starts_on:body.startsOn,ends_on:body.endsOn,starts_at:body.startsAt,ends_at:body.endsAt,location:body.location,notes:body.notes};
+    const entries=Object.entries(fields).filter(([,value])=>value!==undefined);if(!entries.length)throw httpError('No changes supplied.');
+    const values=[weddingId,eventId],sets=entries.map(([column,value],index)=>{values.push(value);return `${column}=$${index+3}`;});values.push(user.id);
+    const result=await client.query(`UPDATE schedule_events SET ${sets.join(',')},updated_by=$${values.length},updated_at=now() WHERE wedding_id=$1 AND id=$2 RETURNING *`,values);
+    await audit(client,weddingId,user.id,'schedule_event',eventId,'updated',{fields:entries.map(([column])=>column)});return result.rows[0];});
+  return {event};
+});
+app.delete('/api/weddings/:weddingId/events/:eventId',async(request,reply)=>{
+  const user=await requireUser(request,reply);if(!user)return;
+  const {weddingId,eventId}=request.params;await requireMembership(user.id,weddingId,['owner','editor','contributor']);
+  await withTransaction(async client=>{const result=await client.query('UPDATE schedule_events SET archived_at=now(),updated_by=$3,updated_at=now() WHERE wedding_id=$1 AND id=$2 AND archived_at IS NULL RETURNING id',[weddingId,eventId,user.id]);if(!result.rows[0])throw httpError('Schedule event not found.',404);await audit(client,weddingId,user.id,'schedule_event',eventId,'archived');});
+  reply.code(204).send();
+});
+
 app.setErrorHandler((error, request, reply) => {
   if (error.name === 'ZodError') return reply.code(400).send({ error: 'Invalid request.', details: error.issues });
   if (error.code === 'FST_REQ_FILE_TOO_LARGE') return reply.code(413).send({ error: 'That file is too large. Attachments can be up to 50 MB.' });

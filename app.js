@@ -339,7 +339,7 @@ document.querySelector('#import-backup').onchange=event=>{const file=event.targe
 document.querySelector('#clear-local-planner').onclick=()=>{if(!window.confirm('Start with a blank planner? This removes all browser-local planning entries on this device. Download a backup first if you want to keep anything.'))return;backupKeys.forEach(key=>localStorage.removeItem(key));localStorage.removeItem('everAfterWorkspaceId');location.reload();};
 function addTask(){showTaskModal();}
 document.querySelector('#quick-task').onclick=addTask;document.querySelector('#add-task-button').onclick=addTask;
-function setView(view){document.querySelectorAll('.view').forEach(section=>section.classList.toggle('active',section.id===view));document.querySelectorAll('[data-view]').forEach(link=>link.classList.toggle('active',link.dataset.view===view));if(view==='honeymoon'){renderPacking();renderTravelDocuments();}document.querySelector('.sidebar').classList.remove('open');}
+function setView(view){document.querySelectorAll('.view').forEach(section=>section.classList.toggle('active',section.id===view));document.querySelectorAll('[data-view]').forEach(link=>link.classList.toggle('active',link.dataset.view===view));if(view==='honeymoon'){renderPacking();renderTravelDocuments();}if(view==='schedule')loadSharedSchedule().catch(error=>console.error('Could not load shared schedule',error));document.querySelector('.sidebar').classList.remove('open');}
 document.querySelectorAll('[data-view]').forEach(link=>link.addEventListener('click',event=>{event.preventDefault();setView(link.dataset.view);history.replaceState(null,'','#'+link.dataset.view)}));
 document.querySelector('.menu-button').onclick=()=>document.querySelector('.sidebar').classList.toggle('open');
 document.querySelector('#clear-activity').onclick=()=>{if(window.confirm('Clear the local activity history?')){activity=[];localStorage.setItem('everAfterActivity',JSON.stringify(activity));renderActivity();}};
@@ -922,3 +922,43 @@ async function loadSharedActivity() {
   renderActivity();
 }
 window.addEventListener('ever-after-auth-changed',()=>{if(sharedTaskWorkspaceId){loadSharedActivity().catch(error=>console.error('Could not load shared activity',error));document.querySelector('#clear-activity').classList.add('hidden');}else document.querySelector('#clear-activity').classList.remove('hidden');});
+
+let sharedScheduleEvents=[];
+let scheduleRangeStart=null;
+let editingSharedScheduleEventId=null;
+const localDateString=date=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+const dateFromString=value=>new Date(`${value}T12:00:00`);
+const addScheduleDays=(value,days)=>{const date=dateFromString(value);date.setDate(date.getDate()+days);return localDateString(date);};
+function scheduleCanEdit(){return ['owner','editor','contributor'].includes(window.everAfterWorkspaceRole);}
+function scheduleRange(){const start=scheduleRangeStart||localDateString(new Date());return {from:start,to:addScheduleDays(start,89)};}
+function scheduleEventMeta(event){const labels={meeting:'Meeting',appointment:'Appointment',reminder:'Reminder',travel:'Travel',ceremony:'Ceremony',other:'Event'};const parts=[labels[event.event_type]||'Event'];if(event.starts_at)parts.push(event.starts_at.slice(0,5));if(event.location)parts.push(event.location);if(event.notes)parts.push(event.notes);return parts.join(' · ');}
+function renderSharedSchedule(){
+  const view=document.querySelector('#schedule'),agenda=view.querySelector('#schedule-agenda'),filter=view.querySelector('#schedule-kind-filter'),addButton=view.querySelector('#add-schedule-event');
+  if(!sharedTaskWorkspaceId||!window.everAfterApi){agenda.innerHTML='<p class="empty-state">Sign in to see your shared schedule.</p>';addButton.hidden=true;return;}
+  addButton.hidden=!scheduleCanEdit();
+  const selected=filter.value||'all',events=sharedScheduleEvents.filter(event=>selected==='all'||event.event_type===selected);
+  if(!events.length){agenda.innerHTML='<p class="empty-state">No events in this range. Add a meeting, reminder, or appointment to get started.</p>';return;}
+  const byDay=new Map();for(const event of events){const key=String(event.starts_on).slice(0,10);byDay.set(key,[...(byDay.get(key)||[]),event]);}
+  agenda.innerHTML=[...byDay.entries()].map(([date,items])=>{const label=dateFromString(date);return `<section class="schedule-day"><div class="schedule-date-label"><strong>${label.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</strong><small>${label.toLocaleDateString('en-US',{weekday:'long'})}</small></div><div class="schedule-day-items">${items.map(event=>`<article class="schedule-event-row"><span class="schedule-event-dot" data-kind="${escapeTaskHtml(event.event_type)}"></span><div><strong>${escapeTaskHtml(event.title)}</strong><small>${escapeTaskHtml(scheduleEventMeta(event))}${event.ends_on&&String(event.ends_on).slice(0,10)!==date?` · through ${escapeTaskHtml(String(event.ends_on).slice(0,10))}`:''}</small></div>${scheduleCanEdit()?`<div class="schedule-event-actions-inline"><button data-edit-schedule-event="${event.id}">Edit</button><button class="danger-action" data-delete-schedule-event="${event.id}">Delete</button></div>`:''}</article>`).join('')}</div></section>`;}).join('');
+  agenda.querySelectorAll('[data-edit-schedule-event]').forEach(button=>button.onclick=()=>openScheduleEvent(sharedScheduleEvents.find(event=>event.id===button.dataset.editScheduleEvent)));
+  agenda.querySelectorAll('[data-delete-schedule-event]').forEach(button=>button.onclick=async()=>{if(!window.confirm('Delete this schedule event?'))return;try{await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/events/${button.dataset.deleteScheduleEvent}`,{method:'DELETE'});await loadSharedSchedule();}catch(error){window.alert(error.message);}});
+}
+async function loadSharedSchedule(){
+  const view=document.querySelector('#schedule');if(!view)return;
+  if(!sharedTaskWorkspaceId||!window.everAfterApi){renderSharedSchedule();return;}
+  const range=scheduleRange();const result=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/events?from=${range.from}&to=${range.to}`);sharedScheduleEvents=result.events||[];renderSharedSchedule();
+}
+function openScheduleEvent(event=null){
+  if(!scheduleCanEdit())return;const dialog=document.querySelector('#schedule-event-modal'),form=document.querySelector('#schedule-event-form');editingSharedScheduleEventId=event?.id||null;form.reset();
+  document.querySelector('#schedule-event-modal-title').textContent=event?'Edit event':'Add an event';
+  form.elements.title.value=event?.title||'';form.elements.eventType.value=event?.event_type||'meeting';form.elements.location.value=event?.location||'';form.elements.startsOn.value=String(event?.starts_on||scheduleRange().from).slice(0,10);form.elements.endsOn.value=event?.ends_on?String(event.ends_on).slice(0,10):'';form.elements.startsAt.value=event?.starts_at?String(event.starts_at).slice(0,5):'';form.elements.endsAt.value=event?.ends_at?String(event.ends_at).slice(0,5):'';form.elements.notes.value=event?.notes||'';dialog.showModal();
+}
+document.querySelector('#add-schedule-event').onclick=()=>openScheduleEvent();
+document.querySelector('#schedule-event-modal .close-modal').onclick=()=>document.querySelector('#schedule-event-modal').close();
+document.querySelector('#cancel-schedule-event').onclick=()=>document.querySelector('#schedule-event-modal').close();
+document.querySelector('#schedule-event-form').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,values=new FormData(form),button=document.querySelector('#save-schedule-event'),payload={title:values.get('title'),eventType:values.get('eventType'),location:values.get('location')||null,startsOn:values.get('startsOn'),endsOn:values.get('endsOn')||null,startsAt:values.get('startsAt')||null,endsAt:values.get('endsAt')||null,notes:values.get('notes')||null};try{button.disabled=true;button.textContent='Saving…';const path=editingSharedScheduleEventId?`/api/weddings/${sharedTaskWorkspaceId}/events/${editingSharedScheduleEventId}`:`/api/weddings/${sharedTaskWorkspaceId}/events`;await window.everAfterApi(path,{method:editingSharedScheduleEventId?'PATCH':'POST',body:JSON.stringify(payload)});document.querySelector('#schedule-event-modal').close();await loadSharedSchedule();}catch(error){window.alert(error.message);}finally{button.disabled=false;button.textContent='Save event';}};
+document.querySelector('#schedule-kind-filter').onchange=renderSharedSchedule;
+document.querySelector('#schedule-today').onclick=()=>{scheduleRangeStart=localDateString(new Date());loadSharedSchedule().catch(error=>window.alert(error.message));};
+document.querySelector('#schedule-previous-range').onclick=()=>{scheduleRangeStart=addScheduleDays(scheduleRange().from,-90);loadSharedSchedule().catch(error=>window.alert(error.message));};
+document.querySelector('#schedule-next-range').onclick=()=>{scheduleRangeStart=addScheduleDays(scheduleRange().from,90);loadSharedSchedule().catch(error=>window.alert(error.message));};
+window.addEventListener('ever-after-auth-changed',()=>loadSharedSchedule().catch(error=>console.error('Could not load shared schedule',error)));

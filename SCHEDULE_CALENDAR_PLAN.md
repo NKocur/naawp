@@ -199,6 +199,20 @@ The response must include only records belonging to the requested wedding worksp
 
 ## Implementation phases
 
+## Implementation progress
+
+### Completed — shared manual-event foundation (July 2026)
+
+- Added the shared `schedule_events` database table with workspace isolation, date-range indexing, soft deletion, and audit history.
+- Added server-backed event create, read, edit, and delete endpoints with Owner, Editor, and Contributor write access; Viewers remain read-only.
+- Added the Schedule navigation tab and an upcoming Agenda view with event-type filtering and range navigation.
+- Added the manual event dialog with optional end date, local times, location, and notes. Closing or cancelling the dialog does not create a record.
+- Added frontend safeguards for date-only rendering and a full-width event save action.
+
+### Next — linked schedule feed
+
+Implement the normalized schedule feed described in Phase 2 so existing shared planning dates appear beside manual events without being copied into a second editable record.
+
 ### Phase 1 — Shared manual event foundation
 
 1. Add an `events` migration with indexes for `wedding_id`, active state, and date range lookups.
