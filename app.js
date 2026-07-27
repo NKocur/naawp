@@ -870,14 +870,19 @@ function decorateTaskAttachments() {
     if(card.querySelector('.task-attachments')) return;
     const index=Number(card.dataset.kanbanTask),task=tasks[index],attachments=task?.[15]||[],sharedTask=sharedTasksActive&&task?.[11];
     const links=attachments.map(file => `<span class="task-file"><a href="/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments/${file.id}/download" target="_blank" rel="noreferrer">${escapeTaskHtml(file.original_name)}</a><small>${formatAttachmentSize(file.byte_size)}</small>${taskCanWrite()?`<button data-archive-task-file="${index}:${file.id}">×</button>`:''}</span>`).join('');
-    card.insertAdjacentHTML('beforeend',`<div class="task-attachments">${links}${sharedTask&&taskCanWrite()?`<label class="task-upload-control">Attach file<input type="file" data-upload-task-file="${index}" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" /></label>`:''}</div>`);
+    card.insertAdjacentHTML('beforeend',`<div class="task-attachments">${links}${sharedTask&&taskCanWrite()?`<button type="button" data-upload-task-file="${index}">Attach file</button>`:''}</div>`);
   });
-  document.querySelectorAll('[data-upload-task-file]').forEach(input=>input.addEventListener('change',()=>uploadTaskAttachment(Number(input.dataset.uploadTaskFile),input.files?.[0]),{once:true}));
+  document.querySelectorAll('[data-upload-task-file]').forEach(button=>button.onclick=()=>uploadTaskAttachment(Number(button.dataset.uploadTaskFile)));
   document.querySelectorAll('[data-archive-task-file]').forEach(button=>button.onclick=()=>archiveTaskAttachment(...button.dataset.archiveTaskFile.split(':')));
 }
-async function uploadTaskAttachment(index,file) {
+async function uploadTaskAttachment(index,selectedFile) {
   const task=tasks[index];
   if(!task?.[11]) return window.alert('This task is still loading. Refresh the checklist and try again.');
+  let file=selectedFile;
+  if(!file){
+    const input=document.createElement('input');input.type='file';input.accept='image/*,.pdf,application/pdf';
+    file=await new Promise(resolve=>{input.onchange=()=>resolve(input.files?.[0]||null);input.click();});
+  }
   if(!file)return;
   try{
     const form=new FormData();form.append('file',file);
