@@ -10,7 +10,7 @@ This backend is the first migration step from the browser-local demo to a shared
 - Task create/update/archive operations recorded in the server-side audit log.
 - Owner-managed invitation links, member roles, revocation, and removal safeguards.
 
-The front-end still uses local storage. Do not treat the app as multi-user until the UI is migrated to the API.
+The signed-in planner uses the shared API and PostgreSQL for its planning records. Browser-local data remains only as a legacy signed-out/demo fallback and should not be used as a backup for the shared workspace.
 
 ## Start locally or on a Raspberry Pi
 
@@ -62,6 +62,14 @@ Send a JSON request to `POST /api/auth/register` with `email`, a password of at 
 - `POST /api/weddings/:weddingId/tasks`
 - `PATCH /api/weddings/:weddingId/tasks/:taskId`
 - `DELETE /api/weddings/:weddingId/tasks/:taskId` (archives the task)
+
+## Schedule date and time-zone rules
+
+- Calendar-day fields are stored as PostgreSQL `DATE` values (`YYYY-MM-DD`): wedding day, RSVP deadline, task/expense due dates, reservation dates, itinerary dates, vendor milestones, packing reminders, and document expiries.
+- A date-only field is a planning calendar day, not a UTC timestamp. The browser deliberately renders it as a local calendar date so October 18 remains October 18 in Manila and in the planner's local view.
+- Optional start/end times are stored separately and are displayed as local planning times. The app does not convert them between travel time zones yet; include the city/time-zone context in the reservation note when needed.
+- The Schedule endpoint only includes items whose saved structured dates overlap the selected range. Text that happens to mention a date never creates a calendar item.
+- Clearing an optional date removes that linked schedule item on the next refresh without deleting the original record.
 
 ## Safety notes
 

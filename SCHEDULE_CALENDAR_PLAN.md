@@ -332,6 +332,11 @@ These upgrades are deliberately separate from the initial linked feed. They prev
 - Added an in-place refresh state to the Schedule tab.
 - A failed refresh preserves the most recently loaded Schedule items and explains what happened instead of replacing the agenda with an empty state.
 
+### Completed — date rules and repeatable browser verification (July 2026)
+
+- Documented the shared date/time-zone rules in `BACKEND_SETUP.md`.
+- Added `SCHEDULE_TEST_CHECKLIST.md` for manual-event permissions, linked dates, range/filter behavior, and failure-state checks after deployment.
+
 ## Deployment checklist
 
 1. Commit and push all application and migration changes.
