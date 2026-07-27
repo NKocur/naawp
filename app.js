@@ -890,8 +890,12 @@ async function uploadTaskAttachment(index,selectedFile) {
   if(!file)return;
   try{
     const form=new FormData();form.append('file',file);
-    await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments`,{method:'POST',body:form});
-    await loadSharedTasks();
+    const result=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments`,{method:'POST',body:form});
+    // The upload response is the authoritative record. Render it immediately
+    // instead of waiting for a second task-list request to repaint this card.
+    task[15]=[...(task[15]||[]),result.attachment];
+    renderTasks();
+    loadSharedActivity().catch(error=>console.error('Could not refresh shared activity',error));
   }catch(error){window.alert(error.message);}
 }
 async function archiveTaskAttachment(index,attachmentId) { const task=tasks[Number(index)]; if(!task||!window.confirm('Archive this attachment?'))return; try{await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments/${attachmentId}`,{method:'DELETE'});await loadSharedTasks();}catch(error){window.alert(error.message);} }
