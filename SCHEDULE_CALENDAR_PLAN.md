@@ -234,6 +234,12 @@ Build the Month view, then add the future structured date fields described in Ph
 - Kept reservation payment due dates separate from travel dates, so Schedule can show a travel range and a money deadline when both exist.
 - Updated the Honeymoon forms and reservation history to display and edit the structured fields.
 
+### Completed — structured vendor milestones (July 2026)
+
+- Added contract due, deposit due, final-payment due, and service-day dates to shared vendor records.
+- Added those dates to the vendor form and edit flow rather than deriving anything from contract notes.
+- Added each saved milestone as a separate linked Schedule item, categorized as vendor work or money where appropriate.
+
 ### Phase 1 — Shared manual event foundation
 
 1. Add an `events` migration with indexes for `wedding_id`, active state, and date range lookups.
