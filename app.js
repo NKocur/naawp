@@ -1022,6 +1022,23 @@ function renderSharedSchedule(){
   const byDay=new Map();for(const item of displayItems)byDay.set(item.displayOn,[...(byDay.get(item.displayOn)||[]),item]);
   agenda.innerHTML=[...byDay.entries()].map(([date,dayItems])=>{const label=dateFromString(date);return `<section class="schedule-day"><div class="schedule-date-label"><strong>${label.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</strong><small>${label.toLocaleDateString('en-US',{weekday:'long'})}</small></div><div class="schedule-day-items">${dayItems.map(item=>`<article class="schedule-event-row"><span class="schedule-event-dot" data-kind="${escapeTaskHtml(item.category)}"></span><div><strong>${escapeTaskHtml(item.title)}</strong><small>${escapeTaskHtml(scheduleItemMeta(item))}${item.endsOn&&String(item.endsOn).slice(0,10)!==date?` · through ${escapeTaskHtml(String(item.endsOn).slice(0,10))}`:''}</small></div>${scheduleItemActions(item)}</article>`).join('')}</div></section>`;}).join('');bindScheduleItemActions(agenda);
 }
+function setScheduleStatus(message,kind='loading'){
+  const agenda=document.querySelector('#schedule-agenda');if(!agenda)return;
+  agenda.querySelector('#schedule-load-status')?.remove();
+  if(message)agenda.insertAdjacentHTML('afterbegin',`<p id="schedule-load-status" class="schedule-load-status ${kind}" role="status">${escapeTaskHtml(message)}</p>`);
+}
+async function loadSharedSchedule(){
+  if(!sharedTaskWorkspaceId||!window.everAfterApi){renderSharedSchedule();return;}
+  const agenda=document.querySelector('#schedule-agenda'),range=scheduleRange();
+  agenda?.setAttribute('aria-busy','true');setScheduleStatus('Refreshing schedule…');
+  try{
+    const result=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/schedule?from=${range.from}&to=${range.to}`);
+    sharedScheduleEvents=result.items||[];renderSharedSchedule();
+  }catch(error){
+    setScheduleStatus('Could not refresh the schedule. Your last loaded items are still shown. Try again when your connection is back.','error');
+    throw error;
+  }finally{agenda?.removeAttribute('aria-busy');}
+}
 function installScheduleViewSwitch(){const header=document.querySelector('#schedule .schedule-header');if(!header||header.querySelector('#schedule-view-switch'))return;const switcher=document.createElement('div');switcher.id='schedule-view-switch';switcher.className='schedule-view-switch';switcher.innerHTML='<button type="button" data-schedule-view="agenda" class="active">Agenda</button><button type="button" data-schedule-view="month">Month</button>';header.append(switcher);switcher.querySelectorAll('[data-schedule-view]').forEach(button=>button.onclick=()=>{scheduleViewMode=button.dataset.scheduleView;if(scheduleViewMode==='month')scheduleMonth=(scheduleMonth||localDateString(new Date()).slice(0,7));switcher.querySelectorAll('button').forEach(control=>control.classList.toggle('active',control===button));loadSharedSchedule().catch(error=>window.alert(error.message));});}
 document.addEventListener('click',event=>{if(event.target.matches('[data-cancel-shared-expense]'))document.querySelector('#shared-expense-dialog')?.close();if(event.target.matches('[data-cancel-shared-payment]'))document.querySelector('#shared-payment-dialog')?.close();});
 document.addEventListener('click',event=>{const button=event.target.closest('[data-edit-shared-reservation]');if(!button||!sharedTaskWorkspaceId||!window.everAfterApi)return;window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/honeymoon`).then(result=>{const item=result.reservations.find(row=>row.id===button.dataset.editSharedReservation),form=document.querySelector('#shared-reservation-form');if(!item||!form)return;form.elements.startsOn.value=item.starts_on||'';form.elements.endsOn.value=item.ends_on||'';form.elements.startsAt.value=item.starts_at?String(item.starts_at).slice(0,5):'';form.elements.endsAt.value=item.ends_at?String(item.ends_at).slice(0,5):'';}).catch(error=>console.error('Could not load reservation dates',error));});

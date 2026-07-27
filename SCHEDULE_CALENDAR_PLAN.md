@@ -327,6 +327,11 @@ These upgrades are deliberately separate from the initial linked feed. They prev
 4. Record audit events for manual event changes.
 5. Document the date/time-zone rules in the production setup and user-facing help.
 
+### Completed — Schedule refresh resilience (July 2026)
+
+- Added an in-place refresh state to the Schedule tab.
+- A failed refresh preserves the most recently loaded Schedule items and explains what happened instead of replacing the agenda with an empty state.
+
 ## Deployment checklist
 
 1. Commit and push all application and migration changes.
