@@ -494,7 +494,7 @@ function renderKanban() {
   const board=document.querySelector('.task-board'), columns=[['todo','DO NEXT'],['progress','IN PROGRESS'],['done','DONE']], canWrite=taskCanWrite();
   board.innerHTML=columns.map(([status,label])=>{const cards=tasks.map((task,index)=>({task,index})).filter(({task})=>(task[4]||'todo')===status);return `<div class="board-column" data-kanban-column="${status}"><h3>${label} <b>${cards.length}</b></h3><div class="kanban-dropzone">${cards.map(({task,index})=>{const comments=task[5]||[];return `<article class="task-card ${status==='done'?'done':''}" draggable="${canWrite}" data-kanban-task="${index}"><span class="tag">${escapeTaskHtml(task[1])} · ${escapeTaskHtml(task[6]||'Medium')}</span><h4>${escapeTaskHtml(task[0])}</h4><p>${escapeTaskHtml(task[2])} · ${escapeTaskHtml(task[7]||'Unassigned')}${task[9]?` · ${escapeTaskHtml(task[9])}`:''}</p>${task[8]?`<small class="task-note">${escapeTaskHtml(task[8])}</small>`:''}${canWrite?`<div class="kanban-actions"><button data-comment-task="${index}">Comment${comments.length?` (${comments.length})`:''}</button><button data-edit-kanban-task="${index}">Edit</button><button class="danger-action" data-delete-kanban-task="${index}">Delete</button></div>`:''}${comments.map((comment,commentIndex)=>`<p class="task-comment"><b>${escapeTaskHtml(comment.author)}</b> ${escapeTaskHtml(comment.text)}<span>${canWrite&&canManageComment(comment)?`<button data-edit-task-comment="${index}:${commentIndex}">Edit</button><button data-delete-task-comment="${index}:${commentIndex}">Delete</button>`:''}</span></p>`).join('')}</article>`;}).join('') || '<p class="empty-state">Drop a task here</p>'}</div></div>`;}).join('');
   if (!canWrite) return;
-  document.querySelectorAll('[data-kanban-task]').forEach(card=>{card.addEventListener('dragstart',event=>{if(event.target.closest('button'))return event.preventDefault();event.dataTransfer.setData('text/plain',card.dataset.kanbanTask);card.classList.add('dragging');});card.addEventListener('dragend',()=>card.classList.remove('dragging'));});
+  document.querySelectorAll('[data-kanban-task]').forEach(card=>{card.addEventListener('dragstart',event=>{if(event.target.closest('button,label,input,a'))return event.preventDefault();event.dataTransfer.setData('text/plain',card.dataset.kanbanTask);card.classList.add('dragging');});card.addEventListener('dragend',()=>card.classList.remove('dragging'));});
   document.querySelectorAll('[data-comment-task]').forEach(button=>button.onclick=()=>openTaskCommentModal(Number(button.dataset.commentTask)));
   document.querySelectorAll('[data-edit-kanban-task]').forEach(button=>button.onclick=()=>editTask(Number(button.dataset.editKanbanTask)));
   document.querySelectorAll('[data-delete-kanban-task]').forEach(button=>button.onclick=()=>deleteTask(Number(button.dataset.deleteKanbanTask)));
@@ -870,32 +870,20 @@ function decorateTaskAttachments() {
     if(card.querySelector('.task-attachments')) return;
     const index=Number(card.dataset.kanbanTask),task=tasks[index],attachments=task?.[15]||[],sharedTask=sharedTasksActive&&task?.[11];
     const links=attachments.map(file => `<span class="task-file"><a href="/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments/${file.id}/download" target="_blank" rel="noreferrer">${escapeTaskHtml(file.original_name)}</a><small>${formatAttachmentSize(file.byte_size)}</small>${taskCanWrite()?`<button data-archive-task-file="${index}:${file.id}">×</button>`:''}</span>`).join('');
-    card.insertAdjacentHTML('beforeend',`<div class="task-attachments">${links}${sharedTask&&taskCanWrite()?`<button data-upload-task-file="${index}">Attach file</button>`:''}</div>`);
+    card.insertAdjacentHTML('beforeend',`<div class="task-attachments">${links}${sharedTask&&taskCanWrite()?`<label class="task-upload-control">Attach file<input type="file" data-upload-task-file="${index}" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" /></label>`:''}</div>`);
   });
-  document.querySelectorAll('[data-upload-task-file]').forEach(button=>button.onclick=()=>uploadTaskAttachment(Number(button.dataset.uploadTaskFile)));
+  document.querySelectorAll('[data-upload-task-file]').forEach(input=>input.addEventListener('change',()=>uploadTaskAttachment(Number(input.dataset.uploadTaskFile),input.files?.[0]),{once:true}));
   document.querySelectorAll('[data-archive-task-file]').forEach(button=>button.onclick=()=>archiveTaskAttachment(...button.dataset.archiveTaskFile.split(':')));
 }
-async function uploadTaskAttachment(index) {
+async function uploadTaskAttachment(index,file) {
   const task=tasks[index];
   if(!task?.[11]) return window.alert('This task is still loading. Refresh the checklist and try again.');
-  // Safari and some privacy-focused browsers can ignore click() on a file input
-  // that has not been inserted into the document.
-  const input=document.createElement('input');
-  input.type='file';
-  input.accept='image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt';
-  input.style.cssText='position:fixed;left:-9999px;opacity:0;pointer-events:none';
-  input.addEventListener('change',async()=>{
-    const file=input.files?.[0];
-    input.remove();
-    if(!file)return;
-    try{
-      const form=new FormData();form.append('file',file);
-      await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments`,{method:'POST',body:form});
-      await loadSharedTasks();
-    }catch(error){window.alert(error.message);}
-  },{once:true});
-  document.body.append(input);
-  input.click();
+  if(!file)return;
+  try{
+    const form=new FormData();form.append('file',file);
+    await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments`,{method:'POST',body:form});
+    await loadSharedTasks();
+  }catch(error){window.alert(error.message);}
 }
 async function archiveTaskAttachment(index,attachmentId) { const task=tasks[Number(index)]; if(!task||!window.confirm('Archive this attachment?'))return; try{await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments/${attachmentId}`,{method:'DELETE'});await loadSharedTasks();}catch(error){window.alert(error.message);} }
 new MutationObserver(decorateTaskAttachments).observe(document.querySelector('.task-board'),{childList:true,subtree:true});
