@@ -142,6 +142,10 @@ Signed-in planning has one authoritative UI and no browser-local demo handler ca
 
 Keep uploads safe, understandable, and maintainable as more receipts, quotes, PDFs, and photos are added.
 
+### Progress
+
+- Payment receipts are now protected shared attachments. Owners and Editors can attach a PDF or image while recording/editing a payment, or later from Payment History; permitted finance members can open or delete it.
+
 ### Tasks
 
 1. Enforce an allow-list of intended attachment MIME types and file extensions on the server.

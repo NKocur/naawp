@@ -315,7 +315,8 @@ app.get('/api/weddings/:weddingId/payments', async (request, reply) => {
   const {weddingId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
   const result=await query(`SELECT p.*,e.name AS expense_name,v.name AS vendor_name,u.display_name AS payer_name,
     COALESCE((SELECT SUM(s.amount) FROM payment_splits s WHERE s.payment_id=p.id AND s.settled_at IS NULL),0)::numeric AS reimbursement_owed,
-    COALESCE((SELECT json_agg(json_build_object('id',s.id,'amount',s.amount,'settledAt',s.settled_at,'owedByUserId',s.owed_by_user_id,'owedByLabel',s.owed_by_label,'owedByName',ou.display_name) ORDER BY s.created_at) FROM payment_splits s LEFT JOIN users ou ON ou.id=s.owed_by_user_id WHERE s.payment_id=p.id),'[]'::json) AS splits
+    COALESCE((SELECT json_agg(json_build_object('id',s.id,'amount',s.amount,'settledAt',s.settled_at,'owedByUserId',s.owed_by_user_id,'owedByLabel',s.owed_by_label,'owedByName',ou.display_name) ORDER BY s.created_at) FROM payment_splits s LEFT JOIN users ou ON ou.id=s.owed_by_user_id WHERE s.payment_id=p.id),'[]'::json) AS splits,
+    COALESCE((SELECT json_agg(json_build_object('id',a.id,'originalName',a.original_name,'contentType',a.content_type,'byteSize',a.byte_size,'createdAt',a.created_at) ORDER BY a.created_at) FROM payment_receipt_attachments a WHERE a.payment_id=p.id AND a.archived_at IS NULL),'[]'::json) AS receipts
     FROM payments p LEFT JOIN expenses e ON e.id=p.expense_id LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.payer_user_id
     WHERE p.wedding_id=$1 AND p.archived_at IS NULL ORDER BY p.paid_on DESC,p.created_at DESC`,[weddingId]);
   return {payments:result.rows};
@@ -351,6 +352,25 @@ app.delete('/api/weddings/:weddingId/payments/:paymentId', async (request, reply
   const {weddingId,paymentId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
   await withTransaction(async client=>{const result=await client.query('UPDATE payments SET archived_at=now(),updated_by=$3,updated_at=now() WHERE id=$1 AND wedding_id=$2 AND archived_at IS NULL RETURNING id',[paymentId,weddingId,user.id]);if(!result.rows[0])throw httpError('Payment not found.',404);await audit(client,weddingId,user.id,'payment',paymentId,'archived');});
   reply.code(204).send();
+});
+app.post('/api/weddings/:weddingId/payments/:paymentId/receipts', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,paymentId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const payment=await query('SELECT id FROM payments WHERE id=$1 AND wedding_id=$2 AND archived_at IS NULL',[paymentId,weddingId]);if(!payment.rows[0])throw httpError('Payment not found.',404);
+  const file=await request.file();if(!file)throw httpError('Choose one receipt file to upload.');const buffer=await file.toBuffer();
+  const id=crypto.randomUUID(),originalName=path.basename(file.filename||'receipt'),storageKey=`${id}-${originalName.replace(/[^a-zA-Z0-9._-]/g,'_')}`;await mkdir(uploadsDirectory,{recursive:true});await writeFile(path.join(uploadsDirectory,storageKey),buffer);
+  const receipt=await withTransaction(async client=>{const result=await client.query(`INSERT INTO payment_receipt_attachments (id,payment_id,wedding_id,original_name,storage_key,content_type,byte_size,checksum_sha256,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,original_name,content_type,byte_size,created_at`,[id,paymentId,weddingId,originalName,storageKey,file.mimetype||'application/octet-stream',buffer.length,crypto.createHash('sha256').update(buffer).digest('hex'),user.id]);await audit(client,weddingId,user.id,'payment_receipt_attachment',id,'created',{paymentId,originalName});return result.rows[0];});
+  reply.code(201).send({receipt});
+});
+app.get('/api/weddings/:weddingId/payments/:paymentId/receipts/:receiptId/download', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,paymentId,receiptId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  const result=await query('SELECT original_name,storage_key,content_type FROM payment_receipt_attachments WHERE id=$1 AND payment_id=$2 AND wedding_id=$3 AND archived_at IS NULL',[receiptId,paymentId,weddingId]);if(!result.rows[0])throw httpError('Receipt not found.',404);const receipt=result.rows[0];reply.header('Content-Disposition',`inline; filename="${receipt.original_name.replaceAll('"','')}"`).type(receipt.content_type);return reply.send(createReadStream(path.join(uploadsDirectory,receipt.storage_key)));
+});
+app.delete('/api/weddings/:weddingId/payments/:paymentId/receipts/:receiptId', async (request, reply) => {
+  const user=await requireUser(request,reply); if(!user)return;
+  const {weddingId,paymentId,receiptId}=request.params; await requireMembership(user.id,weddingId,['owner','editor']);
+  await withTransaction(async client=>{const result=await client.query('UPDATE payment_receipt_attachments SET archived_at=now() WHERE id=$1 AND payment_id=$2 AND wedding_id=$3 AND archived_at IS NULL RETURNING id',[receiptId,paymentId,weddingId]);if(!result.rows[0])throw httpError('Receipt not found.',404);await audit(client,weddingId,user.id,'payment_receipt_attachment',receiptId,'archived',{paymentId});});reply.code(204).send();
 });
 app.patch('/api/weddings/:weddingId/payments/:paymentId/splits/:splitId', async (request, reply) => {
   const user=await requireUser(request,reply); if(!user)return;
