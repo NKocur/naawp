@@ -484,7 +484,7 @@ function renderTasks() {
   document.querySelectorAll('[data-complete-task]').forEach(button => button.onclick = () => completeTask(Number(button.dataset.completeTask)));
   document.querySelectorAll('[data-edit-task]').forEach(button => button.onclick = () => editTask(Number(button.dataset.editTask)));
   document.querySelectorAll('[data-delete-shared-task]').forEach(button => button.onclick = () => deleteTask(Number(button.dataset.deleteSharedTask)));
-  renderKanban(); updateTaskWriteControls();
+  renderKanban(); updateTaskWriteControls(); renderDashboardTaskSummary();
 }
 function renderKanban() {
   const board=document.querySelector('.task-board'), columns=[['todo','DO NEXT'],['progress','IN PROGRESS'],['done','DONE']], canWrite=taskCanWrite();
@@ -617,6 +617,7 @@ async function loadSharedFinanceSummary() {
   const openExpenses=records.expenses.filter(expense=>Number(expense.committed)>(paymentsByExpense[expense.id]||0)),nextDue=openExpenses.filter(expense=>expense.due_date).sort((a,b)=>String(a.due_date).localeCompare(String(b.due_date)))[0];
   document.querySelector('#dashboard-payment-count').textContent=`across ${openExpenses.length} balance${openExpenses.length===1?'':'s'}`;
   document.querySelector('#dashboard-next-payment').innerHTML=nextDue?`Next due <b>${formatDueDate(nextDue.due_date)}</b>`:'No payment due dates set';
+  document.querySelector('#upcoming-payment-list').innerHTML=openExpenses.filter(expense=>expense.due_date).sort((a,b)=>String(a.due_date).localeCompare(String(b.due_date))).slice(0,3).map(expense=>{const due=new Date(`${expense.due_date}T12:00:00`),owed=Math.max(0,Number(expense.committed)-(paymentsByExpense[expense.id]||0));return `<div class="payment-list"><div class="payment-date"><b>${due.getDate().toString().padStart(2,'0')}</b><span>${due.toLocaleDateString('en-US',{month:'short'}).toUpperCase()}</span></div><div><strong>${escapeTaskHtml(expense.name)}</strong><small>${escapeTaskHtml(expense.category||'Other')} · shared balance due</small></div><b>${money(owed)}</b></div>`;}).join('')||'<p class="empty-state">No shared payment due dates yet.</p>';
   const donut=document.querySelector('#spend-donut'),donutTotal=document.querySelector('#spend-donut-total'),legend=document.querySelector('#spend-legend'),categorySpend=Object.entries(records.expenses.reduce((totals,expense)=>{const category=expense.category||'Other';totals[category]=(totals[category]||0)+Number(expense.committed||0);return totals;},{})).sort((a,b)=>b[1]-a[1]),palette=['#5f8b6e','#ddaa9e','#c9aa73','#a8bac2','#aa91af','#e4e8e2'];
   donutTotal.innerHTML=`${money(committed)}<small>committed</small>`;
   if(!committed){donut.style.background='conic-gradient(#e7ece5 0 100%)';legend.innerHTML='<p class="empty-state">Add expenses to see category totals.</p>';}else{let position=0;donut.style.background=`conic-gradient(${categorySpend.map(([,amount],index)=>{const start=position,end=position+(amount/committed)*100;position=end;return `${palette[index%palette.length]} ${start}% ${end}%`;}).join(', ')})`;legend.innerHTML=categorySpend.map(([category,amount],index)=>`<p><i style="background:${palette[index%palette.length]}"></i>${escapeTaskHtml(category)}<b>${money(amount)}</b></p>`).join('');}
