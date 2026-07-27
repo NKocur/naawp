@@ -246,6 +246,11 @@ Build the Month view, then add the future structured date fields described in Ph
 - Saved it on the workspace itself, so it is shared by all members and survives deployments.
 - Added it to the linked Schedule feed as a clearly labeled RSVP deadline item.
 
+### Completed — optional packing deadlines (July 2026)
+
+- Added an optional “Need by” date to shared packing items.
+- Kept packing checklist-only when no date is supplied, while dated items appear as linked Schedule reminders.
+
 ### Phase 1 — Shared manual event foundation
 
 1. Add an `events` migration with indexes for `wedding_id`, active state, and date range lookups.
