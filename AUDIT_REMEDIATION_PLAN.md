@@ -62,6 +62,12 @@ Make it impossible for an expense or payment in one wedding workspace to referen
 7. Return clear validation messages that identify the invalid linked record rather than a generic request failure.
 8. Add API tests for all cross-workspace and payment-split cases.
 
+### Progress — July 2026
+
+- Added server-side workspace checks for expense budget-category/vendor references and payment expense/vendor references on both create and edit.
+- Payment split edits now compare their total with the effective payment amount, including when the payment amount itself is unchanged.
+- API regression coverage and the overpayment policy remain to be completed.
+
 ### Verification
 
 Using two separate test workspaces:
@@ -242,7 +248,7 @@ The app has repeatable regression protection and a polished, understandable shar
 | --- | --- | --- |
 | Audit | Complete | July 2026 audit completed; no code changes made as part of the audit. |
 | Phase 0 | Not started | Credential rotation and baseline backup. |
-| Phase 1 | Not started | Finance record ownership and split validation. |
+| Phase 1 | In progress | Cross-workspace reference checks and split validation implemented; regression tests and overpayment policy remain. |
 | Phase 2 | In progress | Shared Overview finance cards, payment list, and task counts now use server-backed records; shared exports and Viewer UI remain. |
 | Phase 3 | Not started | Legacy/demo consolidation. |
 | Phase 4 | Not started | Upload safety and lifecycle. |
