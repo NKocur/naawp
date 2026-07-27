@@ -875,7 +875,28 @@ function decorateTaskAttachments() {
   document.querySelectorAll('[data-upload-task-file]').forEach(button=>button.onclick=()=>uploadTaskAttachment(Number(button.dataset.uploadTaskFile)));
   document.querySelectorAll('[data-archive-task-file]').forEach(button=>button.onclick=()=>archiveTaskAttachment(...button.dataset.archiveTaskFile.split(':')));
 }
-async function uploadTaskAttachment(index) { const task=tasks[index]; if(!task?.[11]) return; const input=document.createElement('input'); input.type='file'; input.accept='image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt'; input.onchange=async()=>{const file=input.files[0];if(!file)return;try{const form=new FormData();form.append('file',file);await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments`,{method:'POST',body:form});await loadSharedTasks();}catch(error){window.alert(error.message);}};input.click(); }
+async function uploadTaskAttachment(index) {
+  const task=tasks[index];
+  if(!task?.[11]) return window.alert('This task is still loading. Refresh the checklist and try again.');
+  // Safari and some privacy-focused browsers can ignore click() on a file input
+  // that has not been inserted into the document.
+  const input=document.createElement('input');
+  input.type='file';
+  input.accept='image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt';
+  input.style.cssText='position:fixed;left:-9999px;opacity:0;pointer-events:none';
+  input.addEventListener('change',async()=>{
+    const file=input.files?.[0];
+    input.remove();
+    if(!file)return;
+    try{
+      const form=new FormData();form.append('file',file);
+      await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments`,{method:'POST',body:form});
+      await loadSharedTasks();
+    }catch(error){window.alert(error.message);}
+  },{once:true});
+  document.body.append(input);
+  input.click();
+}
 async function archiveTaskAttachment(index,attachmentId) { const task=tasks[Number(index)]; if(!task||!window.confirm('Archive this attachment?'))return; try{await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments/${attachmentId}`,{method:'DELETE'});await loadSharedTasks();}catch(error){window.alert(error.message);} }
 new MutationObserver(decorateTaskAttachments).observe(document.querySelector('.task-board'),{childList:true,subtree:true});
 function configureSharedTaskImport() {
