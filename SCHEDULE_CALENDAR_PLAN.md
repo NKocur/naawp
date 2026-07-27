@@ -220,6 +220,13 @@ Build the Month view, then add the future structured date fields described in Ph
 - Linked items are read-only inside Schedule and provide an **Open** action back to their owning planner section.
 - Added category filters for manual events, tasks, money, vendors, travel, appointments, and ceremony items.
 
+### Completed — month calendar view (July 2026)
+
+- Added Agenda and Month view switching within Schedule.
+- Added month navigation, Today, source-colored calendar chips, and source-open behavior from the calendar.
+- Added multi-day manual-event expansion so an event is visible on every date it covers in Agenda and Month views.
+- Kept date-only values as calendar-day strings so they do not shift due to UTC conversion.
+
 ### Phase 1 — Shared manual event foundation
 
 1. Add an `events` migration with indexes for `wedding_id`, active state, and date range lookups.
