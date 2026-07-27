@@ -53,6 +53,7 @@
   let inviteToken = new URLSearchParams(location.search).get('invite');
 
   const setGate = open => {
+    document.body.classList.toggle('auth-pending', open);
     document.body.classList.toggle('app-authenticated', !open);
     appShell.inert = open;
     document.querySelector('#auth-gate').classList.toggle('hidden', !open);
