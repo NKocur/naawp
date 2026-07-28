@@ -887,7 +887,7 @@ async function uploadSharedPaymentReceipt(paymentId, selectedFile) {
 function decorateTaskAttachments() {
   document.querySelectorAll('[data-kanban-task]').forEach(card => {
     if(card.querySelector('.task-attachments')) return;
-    const index=Number(card.dataset.kanbanTask),task=tasks[index],attachments=task?.[15]||[],sharedTask=sharedTasksActive&&task?.[11];
+    const index=Number(card.dataset.kanbanTask),task=tasks[index],attachments=task?.[14]||[],sharedTask=sharedTasksActive&&task?.[11];
     const links=attachments.map(file => `<span class="task-file"><a href="/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments/${file.id}/download" target="_blank" rel="noreferrer">${escapeTaskHtml(file.original_name)}</a><small>${formatAttachmentSize(file.byte_size)}</small>${taskCanWrite()?`<button data-archive-task-file="${index}:${file.id}">×</button>`:''}</span>`).join('');
     card.insertAdjacentHTML('beforeend',`<div class="task-attachments">${links}${sharedTask&&taskCanWrite()?`<button type="button" data-upload-task-file="${index}">Attach file</button>`:''}</div>`);
   });
@@ -908,7 +908,7 @@ async function uploadTaskAttachment(index,selectedFile) {
     const result=await window.everAfterApi(`/api/weddings/${sharedTaskWorkspaceId}/tasks/${task[11]}/attachments`,{method:'POST',body:form});
     // The upload response is the authoritative record. Render it immediately
     // instead of waiting for a second task-list request to repaint this card.
-    task[15]=[...(task[15]||[]),result.attachment];
+    task[14]=[...(task[14]||[]),result.attachment];
     renderTasks();
     loadSharedActivity().catch(error=>console.error('Could not refresh shared activity',error));
   }catch(error){window.alert(error.message);}
